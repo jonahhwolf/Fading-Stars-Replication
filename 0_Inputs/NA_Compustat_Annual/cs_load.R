@@ -1,19 +1,19 @@
-# Creates Compustat Firm-level dataset
-# - loads datasets
-# - computes basic firm-level variables
-# - maps firms to industry segments
+## Creates Compustat Firm-level dataset
+## - loads datasets
+## - computes basic firm-level variables
+## - maps firms to industry segments
 
 library(this.path)
 
 setwd(dirname(this.path()))
 
-# DATA LOADING
+## DATA LOADING
 
-# FUNDA
+## FUNDA
 # use NA_Compustat_Annual/raw/funda.dta, clear
 data <- read.csv("./raw/funda.csv")
 
-# COMPANY
+## COMPANY
 
 # merge m:1 gvkey using NA_Compustat_Annual/raw/company, nogen keep(matched master) keepusing(loc  sic naics)
 # duplicates drop gvkey fyear, force
@@ -24,10 +24,13 @@ data <- data |>
   left_join(company, relationship = "many-to-one", by = "gvkey") |>
   distinct(gvkey, fyear, .keep_all = TRUE)
 
-# # CRSP-COMPUSTAT MV
-# # by december of fiscal year (same as prcc_c in compustat)
+## CRSP-COMPUSTAT MV
+## by december of fiscal year (same as prcc_c in compustat)
 # rename fyear year
 # g month = 12
+data <- data |>
+  rename(year = fyear) |>
+  mutate(month = 12) |>
 # merge 1:m gvkey year month using NA_Compustat_Annual/loaded/crsp_cpstat_mv, nogen keep(matched master)
 # rename me_crsp me_crsp_dec
 # drop month
