@@ -1,6 +1,9 @@
 library(RPostgres)
 library(data.table)
 library(tidyverse)
+library(this.path)
+
+setwd(dirname(this.path()))
 
 # create first csv
 wrds <- dbConnect(Postgres(),
