@@ -28,14 +28,14 @@ res <- dbSendQuery(wrds, "SELECT gvkey, consol, indfmt, datafmt, popsrc, curcd, 
 funda <- dbFetch(res, n = 2000)
 dbClearResult(res)
 
-filtered_funda <- funda |>
+funda <- funda |>
   filter(consol == "C" & 
            indfmt == "INDL" & 
            datafmt == "STD" & 
            popsrc == "D" & 
            curcd == "USD")
 
-fwrite(filtered_funda, "./raw/funda.csv")
+fwrite(funda, "./raw/funda.csv")
 
 # CRSP-COMPUSTAT
 
