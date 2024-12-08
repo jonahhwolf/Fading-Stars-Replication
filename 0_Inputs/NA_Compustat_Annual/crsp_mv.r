@@ -14,14 +14,20 @@
 # /* 	  LOAD CRSP AND MAP TO CPSTAT	 */ 
 # /* --------------------------------- */ 
 # 
-# * load crsp 
+# * load crsp
 # use "NA_Compustat_Annual/raw/crsp_msf.dta", clear
 # keep permno permco date prc shrout
-# *isid permno date 
+# *isid permno date
 # drop if prc == .
 # rename permno lpermno
 # save tempcrsp.dta, replace
-# 
+library(data.table)
+
+crsp <- read.csv("raw/crsp_msf.csv") |>
+  filter(!is.na(prc)) |>
+  rename(lpermno = permno)
+
+fwrite(crsp, "./raw/tempcrsp.csv")
 # * map to compustat
 # use gvkey linkdt linkenddt lpermno if ~missing(lpermno) using "NA_Compustat_Annual/raw/ccmxpf_linktable.dta", clear
 # bys lpermno linkdt (linkenddt): keep if _n == _N
