@@ -106,7 +106,7 @@ rm(crsp_cpstat)
 # order gvkey lpermno year month me_crsp 
 # save "NA_Compustat_Annual/loaded/crsp_cpstat_mv.dta", replace
 # 
-fwrite(crsp_cpstat_mv, "crsp_cpstat_mv.csv")
+fwrite(crsp_cpstat_mv, "loaded/crsp_cpstat_mv.csv")
 
 rm(crsp_cpstat_mv)
 
