@@ -54,6 +54,8 @@ crsp_cpstat <- inner_join(crsp, linktable, by = "lpermno") |>
   select(gvkey, date, lpermno, prc, shrout) |>
   distinct()
 
+rm(crsp, linktable)
+
 # * Generate year and month variables
 # gen year = year(date)
 # gen month = month(date)
@@ -69,16 +71,6 @@ crsp_cpstat <- crsp_cpstat |>
 # 	isid gvkey lpermno year month
 # restore
 # save tempcrsp, replace
-
-tempcrsp <- crsp_cpstat |>
-  select(gvkey, lpermno, year, month) |>
-  distinct() |>
-  group_by(gvkey, lpermno, year, month) |>
-  filter(n() == 1) |>
-  ungroup()
-
-fwrite(tempcrsp, "raw/tempcrsp.csv")
-
 # **
 # 
 # /* -------------------- */ 
@@ -107,10 +99,15 @@ crsp_cpstat_mv <- crsp_cpstat |>
   mutate(me_crsp = me_crsp / 1000) |>
   ungroup()
 
+rm(crsp_cpstat)
+
 # * finalize
 # keep gvkey lpermno year month me_crsp 
 # order gvkey lpermno year month me_crsp 
 # save "NA_Compustat_Annual/loaded/crsp_cpstat_mv.dta", replace
-# erase tempcrsp.dta
 # 
 fwrite(crsp_cpstat_mv, "crsp_cpstat_mv.csv")
+
+rm(crsp_cpstat_mv)
+
+gc()
