@@ -2,8 +2,10 @@
 ## - loads datasets
 ## - computes basic firm-level variables
 ## - maps firms to industry segments
-
+library(tidyverse)
 library(this.path)
+library(DescTools)
+library(data.table)
 
 setwd(dirname(this.path()))
 
@@ -11,7 +13,7 @@ setwd(dirname(this.path()))
 
 ## FUNDA
 # use NA_Compustat_Annual/raw/funda.dta, clear
-data <- read.csv("./raw/funda.csv")
+funda <- read.csv("./raw/funda.csv", nrows = 10000)
 
 ## COMPANY
 
@@ -20,21 +22,34 @@ data <- read.csv("./raw/funda.csv")
 company <- read.csv("./raw/company.csv") |>
   select(c(gvkey, loc, sic, naics))
 
-data <- data |>
+company_funda <- funda |>
   left_join(company, relationship = "many-to-one", by = "gvkey") |>
   distinct(gvkey, fyear, .keep_all = TRUE)
+
+rm(company, funda)
 
 ## CRSP-COMPUSTAT MV
 ## by december of fiscal year (same as prcc_c in compustat)
 # rename fyear year
 # g month = 12
-data <- data |>
+
+company_funda <- company_funda |>
   rename(year = fyear) |>
-  mutate(month = 12) |>
+  mutate(month = 12)
+
 # merge 1:m gvkey year month using NA_Compustat_Annual/loaded/crsp_cpstat_mv, nogen keep(matched master)
+crsp_cpstat_mv <- read.csv("loaded/crsp_cpstat_mv.csv")
+
 # rename me_crsp me_crsp_dec
 # drop month
-# 
+company_funda_mv <- company_funda |>
+  left_join(crsp_cpstat_mv, by = c("gvkey", "year", "month")) |>
+  filter(!is.na(gvkey)) |>
+  rename(me_crsp_dec = me_crsp) |>
+  select(-month)
+
+rm(company_funda, crsp_cpstat_mv)
+
 # # DATA CLEANING
 # 
 # destring , replace
@@ -47,12 +62,20 @@ data <- data |>
 # 
 # drop if gvkey == 4828 & year == 2001 // DELHAIZE AMERICA INC. Severe issue with csho right before exit.
 # g test_totct = _N
-# 
+company_funda_mv <- company_funda_mv |>
+  mutate(datayear = lubridate::year(datadate)) |>
+  filter(!is.na(year) & !is.na(gvkey)) |>
+  filter(year <= 2017) |>
+  filter(!(gvkey == 4828 & year == 2001))
+
 # # FIRM-LEVEL FIELDS
 # 
 # sort gvkey year
-# xtset gvkey year 
-# 
+# xtset gvkey year
+
+company_funda_mv <- company_funda_mv |>
+  arrange(gvkey, year)
+
 # # BASIC FINANCIALS
 # 
 # # MARKET VALUE OF EQUITY: two ways of calculating it
@@ -76,7 +99,15 @@ data <- data |>
 # su test_me,det
 # drop test_me
 # pause
-# 
+
+company_funda_mv <- company_funda_mv |>
+  mutate(me_cpstat_dec = csho * prcc_c, test_me = me_cpstat_dec/me_crsp_dec - 1)
+
+summary(company_funda_mv$test_me)
+
+company_funda_mv <- company_funda_mv |>
+  select(-test_me)
+
 # # Calendar year-end MVE: Use CRSP if available, else Compustat
 # g me = me_crsp_dec 
 # replace me = me_cpstat_dec if me == .
@@ -84,6 +115,11 @@ data <- data |>
 # drop me_*
 # 
 # g mv = me + dltt
+
+company_funda_mv <- company_funda_mv |>
+  mutate(me = ifelse(is.na(me_crsp_dec), me_cpstat_dec, me_crsp_dec), mv = me + dltt) |>
+  select(!starts_with("me_"))
+
 # 
 # # Profitability
 # g ps = oiadp / sale
@@ -95,7 +131,15 @@ data <- data |>
 # label variable ps "Profit share (OIADB/SALE)"
 # 
 # save tempcpstat, replace
-# 
+
+company_funda_mv <- company_funda_mv |>
+  group_by(year) |>
+  mutate(
+    ps = oiadp / sale,
+    ps = ifelse(ps < -1, -1, ps),
+    ps = Winsorize(ps, val = quantile(ps, probs = c(0.02, 0.98), na.rm = TRUE))) |>
+  ungroup()
+ 
 # # ADD SEGMENTATION DIMENSIONS
 # 
 # # SIC
@@ -103,17 +147,24 @@ data <- data |>
 # tostring sic, g(strsic)
 # replace strsic = "0"+ strsic if strlen(strsic) == 3
 # forvalues ii = 2(1)4 {
-# 	g sic`ii' = substr(strsic,1,`ii') 
+# 	g sic`ii' = substr(strsic,1,`ii')
 # }
 # destring sic*,replace
 # drop strsic
-# 
+
+company_funda_mv |>
+  mutate(
+    sic2 = sic %/% 100,
+    sic3 = sic %/% 10,
+    sic4 = sic
+    )
+
 # # NAICS
 # 
 # # Compute NAICS 2-6
 # tostring naics, g(naicsstr)
 # replace naicsstr = "" if naicsstr == "."
-# forvalues X = 2(1)6 { 
+# forvalues X = 2(1)6 {
 # 	g naics`X' = substr(naicsstr,1,`X')
 # 	replace naics`X' = "" if length(naics`X') ~= `X'
 # }
@@ -122,7 +173,21 @@ data <- data |>
 # compress
 # sort gvkey year
 # save tempcpstat, replace
-# 
+
+company_funda_mv <- company_funda_mv |>
+  mutate(
+    naics = as.character(naics),
+    naics2 = substr(naics, 1, 2),
+    naics3 = substr(naics, 1, 3),
+    naics4 = substr(naics, 1 ,4),
+    naics5 = substr(naics, 1, 5),
+    naics6 = substr(naics, 1, 6),
+    across(starts_with("naics"), as.numeric)
+  ) |>
+  arrange(gvkey, year)
+
+fwrite(company_funda_mv, "tempcpstat.csv")
+
 # # MAP NAICS TO NAICS 2007
 # # Compustat reports an inconsistent NAICS hierarchy.
 # # We map deleted codes to the corresponding, most common 2007 NAICS-4 in the hierarchy
