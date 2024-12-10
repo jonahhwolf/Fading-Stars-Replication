@@ -6,6 +6,7 @@ library(tidyverse)
 library(this.path)
 library(DescTools)
 library(data.table)
+library(readxl)
 
 setwd(dirname(this.path()))
 
@@ -176,7 +177,6 @@ company_funda_mv |>
 
 company_funda_mv <- company_funda_mv |>
   mutate(
-    naics = as.character(naics),
     naics2 = substr(naics, 1, 2),
     naics3 = substr(naics, 1, 3),
     naics4 = substr(naics, 1 ,4),
@@ -204,16 +204,32 @@ fwrite(company_funda_mv, "tempcpstat.csv")
 # egen constant_code = max(naics_pre == naics_post),by(naics_pre)
 # keep if constant_code == 0
 # save naics9702,replace
-# 
+
+naics9702 <- read_excel("raw/NAICS_Concordances/1997_NAICS_to_2002_NAICS.xls", sheet = "Concordance 23 US NoD")
+
+naics9702 <- naics9702 |>
+  select(naics_pre = NAICS97, naics_post = NAICS02) |>
+  filter(!is.na(naics_pre), naics_pre != naics_post)
+
+fwrite(naics9702, "naics9702.csv")
+
 # import excel "NA_Compustat_Annual/raw/NAICS_Concordances/2002_to_2007_NAICS.xls", sheet("02 to 07 NAICS U.S.") cellrange(A3:D1203) firstrow case(l) allstring clear
 # keep naicscode c
-# rename naicscode  naics_pre 
+# rename naicscode  naics_pre
 # rename c naics_post
 # drop if naics_pre == ""
 # egen constant_code = sum(naics_pre == naics_post),by(naics_pre)
 # keep if constant_code == 0
 # save naics0207, replace
-# 
+
+naics0207 <- read_excel("raw/NAICS_Concordances/2002_to_2007_NAICS.xls", sheet = "02 to 07 NAICS U.S.", range = "A3:D1203")
+
+naics0207 <- naics0207 |>
+  select(naics_pre = 1, naics_post = 3) |>
+  filter(!is.na(naics_pre), naics_pre != naics_post)
+  
+fwrite(naics0207, "naics0207.csv")
+
 # import excel "NA_Compustat_Annual/raw/NAICS_Concordances/2012_to_2007_NAICS.xls", sheet("2012 to 2007 NAICS U.S.") cellrange(A3:G1187) firstrow allstring case(l) clear
 # keep naicscode c
 # rename naicscode  naics_pre 
@@ -222,7 +238,15 @@ fwrite(company_funda_mv, "tempcpstat.csv")
 # egen constant_code = sum(naics_pre == naics_post),by(naics_pre)
 # keep if constant_code == 0
 # save naics1207, replace
-# 
+
+naics1207 <- read_excel("raw/NAICS_Concordances/2012_to_2007_NAICS.xls", sheet = "2012 to 2007 NAICS U.S.", range = "A3:G1187")
+
+naics1207 <- naics1207 |>
+  select(naics_pre = 3, naics_post = 1) |>
+  filter(!is.na(naics_pre), naics_pre != naics_post)
+
+fwrite(naics1207, "naics1207.csv")
+
 # # Map NAICS-4 when code was retired; else keep prior code
 # foreach X in 9702 0207 1207{
 # use naics`X',clear
@@ -234,8 +258,15 @@ fwrite(company_funda_mv, "tempcpstat.csv")
 # bys naics4_pre naics4_post: keep if _n == 1
 # g pctmap = ct_ni/ct_n
 # gsort naics4_pre -pctmap naics4_post // for ties, we take lowest NAICS (very rare)
-# bys naics4_pre: keep if _n == 1 
+# bys naics4_pre: keep if _n == 1
 # keep naics4_pre naics4_post
+
+naics9702 |>
+  mutate(
+    naics4_pre = substr(naics_pre, 1, 4),
+    naics4_post = substr(naics_post, 1, 4))
+  
+
 # # merge and update
 # destring naics*, replace
 # rename naics4_pre naics4
