@@ -86,6 +86,13 @@ crsp_cpstat <- crsp_cpstat |>
 # by gvkey year month: keep if _n == _N
 # replace me_crsp = me_crsp/1000
 # lab var me_crsp "Market value of Equity (m$, from CRSP)"
+crsp_cpstat |>
+  mutate(
+    prc = abs(prc),
+    market_value = prc * shrout
+  ) |>
+  group_by(gvkey, year, month) |>
+  filter(n() > 1)
 
 crsp_cpstat_mv <- crsp_cpstat |>
   mutate(
