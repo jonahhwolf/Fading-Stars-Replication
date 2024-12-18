@@ -277,7 +277,8 @@ simplify_naics <- function(df) {
   mapping <- df |>
   mutate(
     naics4_pre = substr(naics_pre, 1, 4),
-    naics4_post = substr(naics_post, 1, 4)) |>
+    naics4_post = substr(naics_post, 1, 4),
+    across(starts_with("naics"), as.numeric)) |>
   group_by(naics4_pre, naics4_post) |>
   mutate(
     ct_ni = n(),  # count of six-digit code pairs for given four-digit code pair
@@ -317,8 +318,11 @@ rm(naics0207, naics1207, naics9702)
 # erase naics`X'.dta
 # }
 
+tempcpstat <- tempcpstat |>
+  left_join(final_mapping) |>
+  mutate(naics4 = ifelse(!is.na(naics4_post), naics4_post, naics4)) |>
+  select(-naics4_post)
 
-# 
 # # FILL-IN MISSING NAICS-4 USING SIC
 # # Includes all firms that exited before 1985
 # # We map to the most common NAICS-4 for a given SIC. This ensures our mapping
