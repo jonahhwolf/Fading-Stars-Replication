@@ -18,7 +18,7 @@ funda <- read.csv("./raw/funda.csv", nrows = 10000)
 
 ## COMPANY
 
-# merge m:1 gvkey using NA_Compustat_Annual/raw/company, nogen keep(matched master) keepusing(loc  sic naics)
+# merge m:1 gvkey using NA_Compustat_Annual/raw/company, nogen keep(matched master) keepusing(loc sic naics)
 # duplicates drop gvkey fyear, force
 company <- read.csv("./raw/company.csv") |>
   select(c(gvkey, loc, sic, naics))
@@ -43,7 +43,7 @@ crsp_cpstat_mv <- read.csv("loaded/crsp_cpstat_mv.csv")
 
 # rename me_crsp me_crsp_dec
 # drop month
-company_funda_mv <- company_funda |>
+tempcpstat <- company_funda |>
   left_join(crsp_cpstat_mv, by = c("gvkey", "year", "month")) |>
   filter(!is.na(gvkey)) |>
   rename(me_crsp_dec = me_crsp) |>
@@ -63,7 +63,7 @@ rm(company_funda, crsp_cpstat_mv)
 # 
 # drop if gvkey == 4828 & year == 2001 // DELHAIZE AMERICA INC. Severe issue with csho right before exit.
 # g test_totct = _N
-company_funda_mv <- company_funda_mv |>
+tempcpstat <- tempcpstat |>
   mutate(datayear = lubridate::year(datadate)) |>
   filter(!is.na(year) & !is.na(gvkey)) |>
   filter(year <= 2017) |>
@@ -74,7 +74,7 @@ company_funda_mv <- company_funda_mv |>
 # sort gvkey year
 # xtset gvkey year
 
-company_funda_mv <- company_funda_mv |>
+tempcpstat <- tempcpstat |>
   arrange(gvkey, year)
 
 # # BASIC FINANCIALS
@@ -101,12 +101,12 @@ company_funda_mv <- company_funda_mv |>
 # drop test_me
 # pause
 
-company_funda_mv <- company_funda_mv |>
+tempcpstat <- tempcpstat |>
   mutate(me_cpstat_dec = csho * prcc_c, test_me = me_cpstat_dec/me_crsp_dec - 1)
 
-summary(company_funda_mv$test_me)
+summary(tempcpstat$test_me)
 
-company_funda_mv <- company_funda_mv |>
+tempcpstat <- tempcpstat |>
   select(-test_me)
 
 # # Calendar year-end MVE: Use CRSP if available, else Compustat
@@ -117,11 +117,10 @@ company_funda_mv <- company_funda_mv |>
 # 
 # g mv = me + dltt
 
-company_funda_mv <- company_funda_mv |>
+tempcpstat <- tempcpstat |>
   mutate(me = ifelse(is.na(me_crsp_dec), me_cpstat_dec, me_crsp_dec), mv = me + dltt) |>
   select(!starts_with("me_"))
 
-# 
 # # Profitability
 # g ps = oiadp / sale
 # replace ps =  -1 if ps < -1
@@ -133,7 +132,7 @@ company_funda_mv <- company_funda_mv |>
 # 
 # save tempcpstat, replace
 
-company_funda_mv <- company_funda_mv |>
+tempcpstat <- tempcpstat |>
   group_by(year) |>
   mutate(
     ps = oiadp / sale,
@@ -153,7 +152,7 @@ company_funda_mv <- company_funda_mv |>
 # destring sic*,replace
 # drop strsic
 
-company_funda_mv |>
+tempcpstat <- tempcpstat |>
   mutate(
     sic2 = sic %/% 100,
     sic3 = sic %/% 10,
@@ -175,7 +174,7 @@ company_funda_mv |>
 # sort gvkey year
 # save tempcpstat, replace
 
-company_funda_mv <- company_funda_mv |>
+tempcpstat <- tempcpstat |>
   mutate(
     naics2 = substr(naics, 1, 2),
     naics3 = substr(naics, 1, 3),
@@ -185,8 +184,6 @@ company_funda_mv <- company_funda_mv |>
     across(starts_with("naics"), as.numeric)
   ) |>
   arrange(gvkey, year)
-
-fwrite(company_funda_mv, "tempcpstat.csv")
 
 # # MAP NAICS TO NAICS 2007
 # # Compustat reports an inconsistent NAICS hierarchy.
@@ -209,7 +206,14 @@ naics9702 <- read_excel("raw/NAICS_Concordances/1997_NAICS_to_2002_NAICS.xls", s
 
 naics9702 <- naics9702 |>
   select(naics_pre = NAICS97, naics_post = NAICS02) |>
-  filter(!is.na(naics_pre), naics_pre != naics_post)
+  # Remove rows with empty naics_pre
+  filter(naics_pre != "") |>
+  # Group by naics_pre and check if any codes are constant
+  group_by(naics_pre) |>
+  # Keep only rows where the code is not constant
+  filter(! all(naics_pre == naics_post)) |>
+  # Optional: ungroup to remove grouping
+  ungroup()
 
 fwrite(naics9702, "naics9702.csv")
 
@@ -226,7 +230,14 @@ naics0207 <- read_excel("raw/NAICS_Concordances/2002_to_2007_NAICS.xls", sheet =
 
 naics0207 <- naics0207 |>
   select(naics_pre = 1, naics_post = 3) |>
-  filter(!is.na(naics_pre), naics_pre != naics_post)
+  # Remove rows with empty naics_pre
+  filter(naics_pre != "") |>
+  # Group by naics_pre and check if any codes are constant
+  group_by(naics_pre) |>
+  # Keep only rows where the code is not constant
+  filter(! all(naics_pre == naics_post)) |>
+  # Optional: ungroup to remove grouping
+  ungroup()
   
 fwrite(naics0207, "naics0207.csv")
 
@@ -243,7 +254,14 @@ naics1207 <- read_excel("raw/NAICS_Concordances/2012_to_2007_NAICS.xls", sheet =
 
 naics1207 <- naics1207 |>
   select(naics_pre = 3, naics_post = 1) |>
-  filter(!is.na(naics_pre), naics_pre != naics_post)
+  # Remove rows with empty naics_pre
+  filter(naics_pre != "") |>
+  # Group by naics_pre and check if any codes are constant
+  group_by(naics_pre) |>
+  # Keep only rows where the code is not constant
+  mutate(! all(naics_pre == naics_post)) |>
+  # Optional: ungroup to remove grouping
+  ungroup()
 
 fwrite(naics1207, "naics1207.csv")
 
@@ -264,7 +282,22 @@ fwrite(naics1207, "naics1207.csv")
 naics9702 |>
   mutate(
     naics4_pre = substr(naics_pre, 1, 4),
-    naics4_post = substr(naics_post, 1, 4))
+    naics4_post = substr(naics_post, 1, 4)) |>
+  group_by(naics4_pre, naics4_post) |>
+  mutate(
+    ct_ni = n(),  # count of specific pre-post combinations
+    ct_n = n_distinct(naics4_pre)  # count of pre codes
+  ) |>
+  slice(1) |>
+  # Calculate mapping percentage
+  mutate(pctmap = ct_ni / ct_n) |>
+  # Sort to prioritize most common mappings
+  arrange(naics4_pre, desc(pctmap), naics4_post) |>
+  # Keep only the top mapping for each pre code
+  group_by(naics4_pre) |>
+  slice(1) |>
+  # Select only necessary columns
+  select(naics4_pre, naics4_post)
   
 
 # # merge and update
@@ -277,6 +310,8 @@ naics9702 |>
 # sleep 500
 # erase naics`X'.dta
 # }
+
+
 # 
 # # FILL-IN MISSING NAICS-4 USING SIC
 # # Includes all firms that exited before 1985
