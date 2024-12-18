@@ -215,8 +215,6 @@ naics9702 <- naics9702 |>
   # Optional: ungroup to remove grouping
   ungroup()
 
-fwrite(naics9702, "naics9702.csv")
-
 # import excel "NA_Compustat_Annual/raw/NAICS_Concordances/2002_to_2007_NAICS.xls", sheet("02 to 07 NAICS U.S.") cellrange(A3:D1203) firstrow case(l) allstring clear
 # keep naicscode c
 # rename naicscode  naics_pre
@@ -238,8 +236,6 @@ naics0207 <- naics0207 |>
   filter(! all(naics_pre == naics_post)) |>
   # Optional: ungroup to remove grouping
   ungroup()
-  
-fwrite(naics0207, "naics0207.csv")
 
 # import excel "NA_Compustat_Annual/raw/NAICS_Concordances/2012_to_2007_NAICS.xls", sheet("2012 to 2007 NAICS U.S.") cellrange(A3:G1187) firstrow allstring case(l) clear
 # keep naicscode c
@@ -263,8 +259,6 @@ naics1207 <- naics1207 |>
   # Optional: ungroup to remove grouping
   ungroup()
 
-fwrite(naics1207, "naics1207.csv")
-
 # # Map NAICS-4 when code was retired; else keep prior code
 # foreach X in 9702 0207 1207{
 # use naics`X',clear
@@ -279,15 +273,17 @@ fwrite(naics1207, "naics1207.csv")
 # bys naics4_pre: keep if _n == 1
 # keep naics4_pre naics4_post
 
-naics9702 |>
+simplify_naics <- function(df) {
+  mapping <- df |>
   mutate(
     naics4_pre = substr(naics_pre, 1, 4),
     naics4_post = substr(naics_post, 1, 4)) |>
   group_by(naics4_pre, naics4_post) |>
   mutate(
-    ct_ni = n(),  # count of specific pre-post combinations
+    ct_ni = n(),  # count of six-digit code pairs for given four-digit code pair
     ct_n = n_distinct(naics4_pre)  # count of pre codes
   ) |>
+  # unique combinations of 4 digit codes
   slice(1) |>
   # Calculate mapping percentage
   mutate(pctmap = ct_ni / ct_n) |>
@@ -297,8 +293,18 @@ naics9702 |>
   group_by(naics4_pre) |>
   slice(1) |>
   # Select only necessary columns
-  select(naics4_pre, naics4_post)
+  select(naics4 = naics4_pre, naics4_post)
   
+  return(mapping)
+}
+
+naics_codes <- list(naics9702, naics0207, naics1207)
+
+all_mappings <- lapply(naics_codes, simplify_naics)
+
+final_mapping <- unique(do.call(rbind, all_mappings))
+
+rm(naics0207, naics1207, naics9702)
 
 # # merge and update
 # destring naics*, replace
