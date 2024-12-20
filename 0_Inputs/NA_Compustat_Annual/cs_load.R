@@ -14,7 +14,7 @@ setwd(dirname(this.path()))
 
 ## FUNDA
 # use NA_Compustat_Annual/raw/funda.dta, clear
-funda <- read.csv("./raw/funda.csv", nrows = 10000)
+funda <- read.csv("./raw/funda.csv", nrows = 20000)
 
 ## COMPANY
 
@@ -68,6 +68,8 @@ tempcpstat <- tempcpstat |>
   filter(!is.na(year) & !is.na(gvkey)) |>
   filter(year <= 2017) |>
   filter(!(gvkey == 4828 & year == 2001))
+
+test_totct = nrow(tempcpstat)
 
 # # FIRM-LEVEL FIELDS
 # 
@@ -387,7 +389,19 @@ tempcpstat <- tempcpstat |>
 # replace naicsbea = naics2 if inlist(naics2,22,23,42,44,45,55,61,81)
 # 
 # merge m:1 naicsbea using ../Temp/NAICS2BEA
-# 
+
+naics2bea <- read_xlsx("../../1_Mapping_Files/NAICS2BEA.xlsx")
+
+tempcpstat <- tempcpstat |>
+  mutate(
+    naicsbea = case_when(
+      naics4 %in% 5411:5419 ~ naics4,
+      naics2 %in% c(22,23,42,44,45,55,61,81) ~ naics2,
+      .default = naics3
+    )
+  ) |>
+  left_join(naics2bea, by = join_by(naicsbea == naics))
+
 # # test: NAICS 55 (Mgmt, not in cpstat), 513,514,516 (retired tech codes),  
 # # 491 (USPS), 521 (Fed), and 999 (Other) don't map. OK.
 # tab naicsbea _merge if _m <3
@@ -397,20 +411,28 @@ tempcpstat <- tempcpstat |>
 # 
 # # FINALIZE
 # 
-# order gvkey year 
+# order gvkey year
 # sort gvkey year
-# bys gvkey year: keep if _n ==1 
+# bys gvkey year: keep if _n ==1
 # drop if gvkey == .
-# xtset gvkey year 
+# xtset gvkey year
 # compress
 # save tempcpstat, replace
 # drop test*
 # save NA_Compustat_Annual/loaded/NA_compustat, replace
-# 
+
+tempcpstat <- tempcpstat |>
+  filter(!is.na(gvkey)) |>
+  arrange(gvkey, year) |>
+  distinct(gvkey, year, .keep_all = TRUE)
+  
+fwrite(tempcpstat, "loaded/NA_compustat.csv")
+
 # # Test
 # use tempcpstat, clear
 # egen ct = count(gvkey)
-# g test1 =  ct - test_totct 
+# g test1 =  ct - test_totct
 # su test1
 # if abs(`r(mean)')>0.001 BREAK
 # erase tempcpstat.dta
+nrow(tempcpstat) == test_totct
