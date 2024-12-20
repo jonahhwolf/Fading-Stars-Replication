@@ -303,7 +303,7 @@ naics_codes <- list(naics9702, naics0207, naics1207)
 
 all_mappings <- lapply(naics_codes, simplify_naics)
 
-final_mapping <- unique(do.call(rbind, all_mappings))
+naics_mapping <- unique(do.call(rbind, all_mappings))
 
 rm(naics0207, naics1207, naics9702)
 
@@ -319,7 +319,7 @@ rm(naics0207, naics1207, naics9702)
 # }
 
 tempcpstat <- tempcpstat |>
-  left_join(final_mapping) |>
+  left_join(naics_mapping) |>
   mutate(naics4 = ifelse(!is.na(naics4_post), naics4_post, naics4)) |>
   select(-naics4_post)
 
@@ -342,7 +342,25 @@ tempcpstat <- tempcpstat |>
 # merge 1:m sic using tempcpstat, nogen
 # replace naics4 = naics4_sicmapped if naics4 == .
 # drop naics4_sicmapped
-# 
+
+sic_mapping <- tempcpstat |>
+  filter(! is.na(naics4)) |>
+  distinct(gvkey, sic, naics4) |>
+  # Count observations for each SIC-NAICS combination
+  group_by(sic, naics4) |>
+  summarise(ctobs = n(), .groups = "drop") |>
+  # Sort by SIC and count (descending)
+  arrange(sic, desc(ctobs), naics4) |>
+  # Keep the most common NAICS code for each SIC
+  group_by(sic) |>
+  slice(1) |>
+  # Keep only necessary columns
+  select(sic, naics4) %>%
+  # Rename for clarity
+  rename(naics4_sicmapped = naics4) |>
+  # Remove rows with missing SIC
+  filter(!is.na(sic))
+
 # # Adjust NAICS-2 and 3 when mapped (either through SIC or across NAICS)
 # tostring naics4, g(strnaics4)
 # forvalues ii = 2(1)3 {
@@ -351,7 +369,16 @@ tempcpstat <- tempcpstat |>
 # replace naics`ii' = n`ii' if n`ii' ~= naics`ii'
 # }
 # drop n2 n3 strnaics4
-# 
+
+tempcpstat <- tempcpstat |>
+  left_join(sic_mapping) |>
+  mutate(
+    naics4 = coalesce(naics4, naics4_sicmapped),
+    naics2 = as.numeric(substr(naics4, 1, 2)),
+    naics3 = as.numeric(substr(naics4, 1, 3))
+    ) |>
+  select(-naics4_sicmapped)
+
 # # NAICS TO BEA
 # 
 # # Map NAICS to BEA segments 
