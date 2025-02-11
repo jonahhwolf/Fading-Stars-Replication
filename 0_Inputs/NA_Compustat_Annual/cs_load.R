@@ -14,7 +14,7 @@ setwd(dirname(this.path()))
 
 ## FUNDA
 # use NA_Compustat_Annual/raw/funda.dta, clear
-funda <- read.csv("./raw/funda.csv", nrows = 20000)
+funda <- read.csv("./raw/funda.csv")
 
 ## COMPANY
 
