@@ -19,7 +19,7 @@ wrds <- dbConnect(Postgres(),
   
 # COMPANY INFORMATION
 res <- dbSendQuery(wrds, "SELECT gvkey, loc, dlrsn, ipodate, sic, naics FROM comp_na_daily_all.company")
-company <- dbFetch(res, n = 200000)
+company <- dbFetch(res)
 fwrite(company, "./raw/company.csv")
 dbClearResult(res)
 
@@ -27,7 +27,7 @@ rm(company)
 
 # NA FUNDA
 res <- dbSendQuery(wrds, "SELECT gvkey, consol, indfmt, datafmt, popsrc, curcd, fyear, datadate, conm, at, cogs, csho, dlc, dltt, emp, ib, pstk, sale, xlr, xsga, fic, prcc_f, prcc_c, oiadp, fyr FROM comp_na_daily_all.funda")
-funda <- dbFetch(res, n = 200000)
+funda <- dbFetch(res)
 dbClearResult(res)
 
 funda <- funda |>
@@ -45,7 +45,7 @@ rm(funda)
 
 # CRSP-COMPUSTAT LINKING TABLE
 res <- dbSendQuery(wrds, "SELECT * FROM crsp_a_ccm.ccmxpf_linktable")
-linktable_data <- dbFetch(res, n = 200000)
+linktable_data <- dbFetch(res)
 dbClearResult(res)
 fwrite(linktable_data, "./raw/ccmxpf_linktable.csv")
 
@@ -53,7 +53,7 @@ rm(linktable_data)
 
 # CRSP PRICE & SHARES
 res <- dbSendQuery(wrds, "SELECT permno, permco, date, prc, shrout FROM crsp.msf")
-crsp_msf <- dbFetch(res, n = 200000)
+crsp_msf <- dbFetch(res)
 dbClearResult(res)
 fwrite(crsp_msf, "./raw/crsp_msf.csv")
 
