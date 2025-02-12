@@ -65,7 +65,7 @@ BEA2INDUSTRY <- read_xlsx("1_Mapping_Files/BEA_mapping_stars.xlsx") |>
   filter(beacode != "") |>
   distinct(beacode, ind_short)
 
-write.csv(BEA2INDUSTRY, "Temp/bea2industry.csv")
+write.csv(BEA2INDUSTRY, "Temp/bea2industry.csv", row.names = FALSE)
 
 # * sic2mne (pre-1998)
 # import excel 1_Mapping_Files/BEA_mapping_stars.xlsx, sheet("sic2mne") firstrow clear
