@@ -251,6 +251,14 @@ main_dataset <- main_dataset %>%
 # bys year: g rkme = _n
 # replace rkme = . if inlist(me,0,.)
 # g star = rkme <=20 & me > 0
+main_dataset <- main_dataset |>
+  arrange(year, desc(me)) |>
+  group_by(year) |>
+  mutate(rkme = row_number()) |>
+  ungroup() |>
+  mutate(rkme = ifelse(me == 0 | is.na(me), NA, rkme)) |>
+  mutate(star = (rkme <= 20 & me > 0 & !is.na(rkme)))
+
 # 
 # * no oil
 # g rkme_exoil = rkme
