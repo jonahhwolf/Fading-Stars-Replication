@@ -15,3 +15,7 @@
 *.dat
 *.zip
 *.dbf
+*.dta
+*.png
+*.csv
+*.eps
