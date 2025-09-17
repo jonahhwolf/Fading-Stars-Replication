@@ -29,7 +29,7 @@
 # /* 		SAMPLE CREATION	  */ 
 # /* ---------------------- */ 
 # 
-# use 3_Final_data/main_dataset_firm, clear 
+# use 3_Final_data/main_dataset_firm, clear
 # 
 # keep if loc == "USA"
 # drop if year==.
@@ -45,6 +45,25 @@
 # replace me=0 if me==.
 # replace ps = -1 if ps < -1
 # 
+main_dataset <- read_dta("3_Final_data/main_dataset_firm.dta") |>
+  filter(
+    loc == "USA",
+    !is.na(year),
+    !is.na(gvkey),
+    !is.na(at),
+    at > 0,
+    !is.na(sale),
+    sale > 0,
+    !is.na(emp),
+    emp > 0,
+    !is.na(oiadp),
+    !is.na(aa1_pgo)
+  ) |>
+  mutate(
+    me = ifelse(is.na(me), 0, me),
+    ps = ifelse(ps < -1, -1, ps)
+  )
+
 # * Real output deflated with industry prices
 # g sale09 = sale/(aa1_pgo/100)
 # drop if sale09<0.1
@@ -60,6 +79,32 @@
 # sort gvkey year
 # xtset gvkey year
 # encode(indcode),g(indgr)
+
+main_dataset <- main_dataset %>%
+  # Create real sales variable
+  mutate(sale09 = sale / (aa1_pgo / 100)) %>%
+  # Filter out very small sales
+  filter(sale09 >= 0.1) %>%
+  # Create year when firm first appears in Compustat
+  group_by(gvkey) %>%
+  mutate(year0 = min(year, na.rm = TRUE)) %>%
+  ungroup() %>%
+  # Adjust year0 for pre-1960 entries
+  mutate(year0 = ifelse(year < 1960, 1960, year0)) %>%
+  # Standardize company names
+  mutate(
+    conm = case_when(
+      conm == "INTL BUSINESS MACHINES CORP" ~ "IBM",
+      conm == "DU PONT (E I) DE NEMOURS" ~ "DUPONT",
+      conm %in% c("UNITED STATES STEEL CORP", "USX CORP-CONSOLIDATED") ~ "US STEEL",
+      TRUE ~ conm  # keep original name for all others
+    )
+  ) %>%
+  # Sort by gvkey and year
+  arrange(gvkey, year) %>%
+  # Create industry group factor variable
+  mutate(indgr = as.numeric(as.factor(indcode)))
+
 # 
 # *
 # 
