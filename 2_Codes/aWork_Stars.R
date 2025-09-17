@@ -273,10 +273,23 @@ main_dataset <- main_dataset |>
 # gsort year indgr -me
 # bys year indgr: g irkme = _n
 # replace irkme = . if inlist(me,0,.)
+main_dataset <- main_dataset |>
+  arrange(year, indgr, desc(me)) |>
+  group_by(year, indgr) |>
+  mutate(irkme = row_number()) |>
+  ungroup() |>
+  mutate(irkme = ifelse(me == 0 | is.na(me), NA, irkme))
 # 
 # gsort year indgr -sale
 # bys year indgr: g irks = _n
 # replace irks = . if inlist(sale,0,.)
+main_dataset <- main_dataset |>
+  arrange(year, indgr, desc(sale)) |>
+  group_by(year, indgr) |>
+  mutate(irks = row_number()) |>
+  ungroup() |>
+  mutate(irks = ifelse(sale == 0 | is.na(sale), NA, irks))
+  
 # 
 # * fill in ME ranks using sales if not enough me-based ranks
 # egen nirkme = sum(irkme~=.),by(indcode year)
