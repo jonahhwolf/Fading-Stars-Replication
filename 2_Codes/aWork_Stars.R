@@ -1,3 +1,6 @@
+library(haven)
+library(tidyverse)
+
 # clear all
 # set more off 
 # pause off
@@ -46,18 +49,12 @@
 # replace ps = -1 if ps < -1
 # 
 main_dataset <- read_dta("3_Final_data/main_dataset_firm.dta") |>
+  drop_na(year, gvkey, at, sale, emp, oiadp, aa1_pgo) |>
   filter(
     loc == "USA",
-    !is.na(year),
-    !is.na(gvkey),
-    !is.na(at),
     at > 0,
-    !is.na(sale),
     sale > 0,
-    !is.na(emp),
     emp > 0,
-    !is.na(oiadp),
-    !is.na(aa1_pgo)
   ) |>
   mutate(
     me = ifelse(is.na(me), 0, me),
@@ -173,6 +170,13 @@ main_dataset <- main_dataset %>%
 # g cy  = cost/(y*1e3)
 # g sye = sale*(1-aa1_pctfor)/(y*1e3)
 # g cye = cost*(1-aa1_pctfor)/(y*1e3)
+
+main_dataset <- main_dataset |>
+  mutate(
+    sy = sale / y * 1e3,
+    sye = sale*(1-aa1_pctfor)/(y*1e3)
+    )
+
 # 
 # label variable me_share "Share of Mkt Val Equity"
 # label variable sale_share "Sale Share of Compustat Sample"
@@ -298,6 +302,24 @@ main_dataset <- main_dataset |>
 # g istar = irkme<=4
 # g istar_exoil  = istar * ~inlist(indcode,"Min_oil_and_gas","Nondur_petro")
 # 
+
+main_dataset <- main_dataset |>
+  # Count non-missing industry rankings by industry and year
+  group_by(indcode, year) |>
+  mutate(nirkme = sum(!is.na(irkme))) |>
+  ungroup() |>
+  
+  # Fill in ME ranks using sales if not enough ME-based ranks
+  mutate(irkme = ifelse(nirkme < 4, irks, irkme)) |>
+  
+  # Create industry star indicator (top 4 firms per industry)
+  mutate(istar = (irkme <= 4 & !is.na(irkme))) |>
+  
+  # Create industry star excluding oil/gas industries
+  mutate(
+    istar_exoil = istar & !(indcode %in% c("Min_oil_and_gas", "Nondur_petro"))
+  )
+
 # g all = 1	// for loops
 # 
 # * Truncate LP at -0.3 for stars (few cases in 1960s)
@@ -312,18 +334,21 @@ main_dataset <- main_dataset |>
 # 	if "`gp'" == "all" local clab = "All"
 # 	else if "`gp'" == "star" local clab = "Top 20"
 # 	else if "`gp'" == "istar" local clab = "Top 4*Ind"
-# 	
+# 
 # 	egen sys_`gp'  = sum(sy*`gp'), by(year)
 # 	egen syes_`gp' = sum(sye*`gp'), by(year)
 # 	egen ens_`gp'  = sum(en*`gp'), by(year)
-# 	
+# 
 # 	label variable sys_`gp' "`clab'"
 # 	label variable syes_`gp' "`clab'"
-# 	label variable ens_`gp' "`clab'"	
+# 	label variable ens_`gp' "`clab'"
 # }
 # 
 # sort gvkey year
 # save Temp/tempanalysis_stars, replace
+main_dataset |>
+  write_csv("tempanalysis_stars.csv")
+
 # */
 # 
 # ***
@@ -340,7 +365,7 @@ main_dataset <- main_dataset |>
 
 tempanalysis_stars <- read_dta("Temp/tempanalysis_stars.dta")
 
-processed_data <- tempanalysis_stars |>
+processed_data <- main_dataset |>
   filter(star & year >= year0) |>
   arrange(year) |>
   group_by(year) |>
