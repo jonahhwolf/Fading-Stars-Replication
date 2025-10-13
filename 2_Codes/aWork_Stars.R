@@ -1,6 +1,7 @@
 library(haven)
 library(tidyverse)
 
+
 # clear all
 # set more off 
 # pause off
@@ -173,7 +174,7 @@ main_dataset <- main_dataset %>%
 
 main_dataset <- main_dataset |>
   mutate(
-    sy = sale / y * 1e3,
+    sy = sale / (y * 1e3),
     sye = sale*(1-aa1_pctfor)/(y*1e3)
     )
 
@@ -345,9 +346,23 @@ main_dataset <- main_dataset |>
 # }
 # 
 # sort gvkey year
+main_dataset <- main_dataset |>
+  group_by(year) |>
+  mutate(
+    # Top 20 (star)
+    sys_star = sum(sy * star, na.rm = TRUE),
+    syes_star = sum(sye * star, na.rm = TRUE),
+    # Top 4*Ind (istar)
+    sys_istar = sum(sy * istar, na.rm = TRUE),
+    syes_istar = sum(sye * istar, na.rm = TRUE)
+  ) |>
+  ungroup() |>
+  arrange(gvkey, year)
+
 # save Temp/tempanalysis_stars, replace
 main_dataset |>
-  write_csv("tempanalysis_stars.csv")
+  select(star, year, year0, sys_star, sys_istar, syes_star, syes_istar) |>
+  write_csv("3_Final_data/tempanalysis_stars.csv")
 
 # */
 # 
@@ -363,9 +378,9 @@ main_dataset |>
 # keep if star & year >= year0
 # bys year: g oo = _n ==1
 
-tempanalysis_stars <- read_dta("Temp/tempanalysis_stars.dta")
+tempanalysis_stars <- read_csv("3_Final_data/tempanalysis_stars.csv")
 
-processed_data <- main_dataset |>
+processed_data <- tempanalysis_stars |>
   filter(star & year >= year0) |>
   arrange(year) |>
   group_by(year) |>
