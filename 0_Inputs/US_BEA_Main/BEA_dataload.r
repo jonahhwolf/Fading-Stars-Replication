@@ -146,6 +146,14 @@ gross_output <- gross_output |>
 # 	replace y`X'q = y`X'q* y`X'09 / 100
 # 	drop temp y`X'09
 # }
+value_09 <- gross_output |>
+  filter(year == 2009) |>
+  select(va_ind, value_2009 = go)
+
+gross_output <- gross_output |>
+  left_join(value_09) |>
+  mutate(goq = goq * value_2009 / 100) |>
+  select(-value_2009)
 
 # * rename
 # ds va_ind year, not
@@ -154,6 +162,11 @@ gross_output <- gross_output |>
 # 	local nn = substr("`X'", 2, .)
 #    	rename `X' aa1_`nn'
 # }
+gross_output <- gross_output |>
+  # Divide by 1000 to put data in billions
+  mutate(across(!c(va_ind, year), ~ .x / 1000)) |>
+  rename_with(~ paste0("aa1_", .x, recycle0 = TRUE), !c(va_ind, year))
+
 # * Merge industry codes
 # merge m:1 va_ind using mapping, keepusing(beacode)
 # egen test1 = sum(_m==3)    // 77 industries x 71 years
@@ -180,6 +193,9 @@ gross_output |>
   drop_na(beacode, year) |>
   filter(! va_ind %in% c("Hospitals","Nursing and residential care facilities")) |>
   select(-va_ind)
+
+gross_output |>
+  filter(beacode == 1130)
 
 # 
 # * aggregate (applies only for 3360)
