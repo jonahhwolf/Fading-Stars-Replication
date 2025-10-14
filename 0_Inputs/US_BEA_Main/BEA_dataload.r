@@ -3,7 +3,6 @@
 # pause off
 # set logtype text
 
-
 library(tidyverse)
 library(this.path)
 library(readxl)
@@ -55,17 +54,17 @@ setwd(dirname(this.path()))
 # **********************************
 # 
 # import excel "US_BEA_Main/Mapping_BEA.xlsx", firstrow clear
+bea_mapping <- read_xlsx("Mapping_BEA.xlsx")
+
 # isid va_ind
+if (any(duplicated(bea_mapping$va_ind))) {
+  stop("va_ind is not a unique identifier")
+}
+
 # foreach X in  va_ind emp_ind_pre98 emp_ind_post98{
 # 	replace `X' = strltrim(`X')
 # }
 # save mapping.dta, replace
-
-bea_mapping <- read_xlsx("Mapping_BEA.xlsx")
-
-if (any(duplicated(bea_mapping$va_ind))) {
-  stop("va_ind is not a unique identifier")
-}
 
 bea_mapping <- bea_mapping %>%
   mutate(across(c(va_ind, emp_ind_pre98, emp_ind_post98), str_trim))
@@ -86,44 +85,32 @@ write_csv(bea_mapping, "mapping.csv")
 # * LOAD
 # import excel US_BEA_Main/raw/GDPbyInd_GO_1947-2017.xlsx, sheet("GO") cellrange(B6:BU95) firstrow clear
 # VALOAD go
-
 gross_output <- read_xlsx("raw/GDPbyInd_GO_1947-2017.xlsx", sheet = "GO", range = "B6:BU95")
 
 gross_output <- gross_output |>
-  rename(go = '...1')
-
-# vaload <- function(data, field_value){
-#   output <- data |>
-#     rename(val_ind = B) |>
-#     filter(!is.na(val_ind)) |>
-#     mutate(field = field_value) |>
-#     relocate(field)
-#   
-#   cols <- setdiff(names(output), c("val_ind", "field"))
-#   
-#   for (col in cols){
-#     
-#     new_name <- paste0("y", col)
-#     
-#     processed_data <- processed_data |>
-#       rename(!!new_name := !!sym(col))
-#   }
-#   
-#   output <- output |>
-#     mutate(across(starts_with("y"), ~as.numeric(as.character(.))))
-#   
-# }
-
-bea_mapping |>
-  filter(!is.na(va_ind))
+  rename(vaind = "...1") |>
+  rename_with(~ paste0("y", .x, recycle0 = TRUE), !vaind) |>
+  mutate(
+    across(starts_with("y"), ~as.numeric(as.character(.))),
+    field = "go",
+    .before = 1
+    )
 
 # import excel US_BEA_Main/raw/GDPbyInd_GO_1947-2017.xlsx, sheet("ChainQtyIndexes") cellrange(B6:BU95) firstrow clear
 # VALOAD goq
+chain_indexes <- read_xlsx("raw/GDPbyInd_GO_1947-2017.xlsx", sheet = "ChainQtyIndexes", range = "B6:BU95")
 
-go_q <- read_xlsx("raw/GDPbyInd_GO_1947-2017.xlsx", sheet = "ChainQtyIndexes", range = "B6:BU95")
+chain_indexes <- chain_indexes |>
+  rename(vaind = "...1") |>
+  rename_with(~ paste0("y", .x, recycle0 = TRUE), !vaind) |>
+  mutate(
+    across(starts_with("y"), ~as.numeric(as.character(.))),
+    field = "goq",
+    .before = 1
+    )
 
-go_q <- go_q |>
-  rename(go_q = "...1")
+gross_output <- gross_output |>
+  bind_rows(chain_indexes)
 
 # **
 # 
@@ -132,8 +119,6 @@ go_q <- go_q |>
 # reshape long y, i(va_ind field) j(year)
 # reshape wide y, i(va_ind year) j(field, string)
 # sort va_ind year
-
-
  
 # * redefine quantity indices based on 09 USD
 # foreach X in go {
