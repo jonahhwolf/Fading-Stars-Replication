@@ -8,7 +8,10 @@ library(this.path)
 library(readxl)
 
 setwd(dirname(this.path()))
- 
+
+# Target output
+BEA_industry_dta <- haven::read_dta("0_Inputs/US_BEA_Main/loaded/BEA_industry_raw.dta")
+
 # *************** DESCRIPTION ******************************************
 # * Loads industry-level datasets from the BEA 
 # *
@@ -69,9 +72,6 @@ if (any(duplicated(bea_mapping$va_ind))) {
 bea_mapping <- bea_mapping %>%
   mutate(across(c(va_ind, emp_ind_pre98, emp_ind_post98), str_trim))
 
-# Save processed data
-write_csv(bea_mapping, "mapping.csv")
-
 # **
 # 
 # **********************************
@@ -88,8 +88,8 @@ write_csv(bea_mapping, "mapping.csv")
 gross_output <- read_xlsx("raw/GDPbyInd_GO_1947-2017.xlsx", sheet = "GO", range = "B6:BU95")
 
 gross_output <- gross_output |>
-  rename(vaind = "...1") |>
-  rename_with(~ paste0("y", .x, recycle0 = TRUE), !vaind) |>
+  rename(va_ind = "...1") |>
+  rename_with(~ paste0("y", .x, recycle0 = TRUE), !va_ind) |>
   mutate(
     across(starts_with("y"), ~as.numeric(as.character(.))),
     field = "go",
@@ -101,8 +101,8 @@ gross_output <- gross_output |>
 chain_indexes <- read_xlsx("raw/GDPbyInd_GO_1947-2017.xlsx", sheet = "ChainQtyIndexes", range = "B6:BU95")
 
 chain_indexes <- chain_indexes |>
-  rename(vaind = "...1") |>
-  rename_with(~ paste0("y", .x, recycle0 = TRUE), !vaind) |>
+  rename(va_ind = "...1") |>
+  rename_with(~ paste0("y", .x, recycle0 = TRUE), !va_ind) |>
   mutate(
     across(starts_with("y"), ~as.numeric(as.character(.))),
     field = "goq",
@@ -119,6 +119,25 @@ gross_output <- gross_output |>
 # reshape long y, i(va_ind field) j(year)
 # reshape wide y, i(va_ind year) j(field, string)
 # sort va_ind year
+
+gross_output <- gross_output |>
+  # Trim leading whitespace from va_ind
+  mutate(va_ind = str_trim(va_ind)) |>
+  # Reshape long: gather all y* columns into year and y
+  pivot_longer(
+    cols = starts_with("y"),
+               names_to = "year",
+               names_prefix = "y",
+               values_to = "y"
+    ) |>
+    mutate(year = as.numeric(year)) |>
+  # Reshape wide: spread field values into columns
+  pivot_wider(
+    names_from = field,
+    values_from = y
+  ) |>
+  # Sort by va_ind and year
+  arrange(va_ind, year)
  
 # * redefine quantity indices based on 09 USD
 # foreach X in go {
@@ -127,27 +146,41 @@ gross_output <- gross_output |>
 # 	replace y`X'q = y`X'q* y`X'09 / 100
 # 	drop temp y`X'09
 # }
+
 # * rename
 # ds va_ind year, not
 # foreach X of varlist `r(varlist)' {
-#    	replace `X' = `X'/1000 // put data in billions 
+#    	replace `X' = `X'/1000 // put data in billions
 # 	local nn = substr("`X'", 2, .)
 #    	rename `X' aa1_`nn'
 # }
 # * Merge industry codes
-# merge m:1 va_ind using mapping, keepusing(beacode) 
+# merge m:1 va_ind using mapping, keepusing(beacode)
 # egen test1 = sum(_m==3)    // 77 industries x 71 years
 # replace test1 = test1-5467
 # su test*
 # if abs(`r(mean)')>0.001 BREAK
 # drop test* _m
 # pause
+gross_output <- gross_output |>
+  left_join(select(bea_mapping, va_ind, beacode))
+
+# Break if validation fails
+if (sum(!is.na(gross_output$beacode)) != 5467) {
+  stop("VALIDATION FAILED: Expected 5467 matched observations (77 industries x 71 years)")
+}
+
 # 
 # * clean
 # drop if beacode == "" // more granular industries reported in some but not all BEA accounts
-# drop if year == . 
+# drop if year == .
 # drop if inlist(va_ind,"Hospitals","Nursing and residential care facilities") // keep aggregated because available over longer period
-# drop va_ind 
+# drop va_ind
+gross_output |>
+  drop_na(beacode, year) |>
+  filter(! va_ind %in% c("Hospitals","Nursing and residential care facilities")) |>
+  select(-va_ind)
+
 # 
 # * aggregate (applies only for 3360)
 # ds beacode year, not
