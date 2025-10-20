@@ -2,7 +2,6 @@
 # set more off 
 # pause off
 # set logtype text
-
 library(tidyverse)
 library(this.path)
 library(readxl)
@@ -55,20 +54,17 @@ setwd(dirname(this.path()))
 # **********************************
 # 
 # import excel "US_BEA_Main/Mapping_BEA.xlsx", firstrow clear
-bea_mapping <- read_xlsx("Mapping_BEA.xlsx")
-
 # isid va_ind
-if (any(duplicated(bea_mapping$va_ind))) {
-  stop("va_ind is not a unique identifier")
-}
-
 # foreach X in  va_ind emp_ind_pre98 emp_ind_post98{
 # 	replace `X' = strltrim(`X')
 # }
 # save mapping.dta, replace
-
-bea_mapping <- bea_mapping %>%
+mapping <- read_xlsx("Mapping_BEA.xlsx") |>
   mutate(across(c(va_ind, emp_ind_pre98, emp_ind_post98), str_trim))
+
+if (any(duplicated(mapping$va_ind))) {
+  stop("va_ind is not a unique identifier")
+}
 
 # **
 # 
@@ -83,9 +79,9 @@ bea_mapping <- bea_mapping %>%
 # * LOAD
 # import excel US_BEA_Main/raw/GDPbyInd_GO_1947-2017.xlsx, sheet("GO") cellrange(B6:BU95) firstrow clear
 # VALOAD go
-gross_output <- read_xlsx("raw/GDPbyInd_GO_1947-2017.xlsx", sheet = "GO", range = "B6:BU95")
+temp_go <- read_xlsx("raw/GDPbyInd_GO_1947-2017.xlsx", sheet = "GO", range = "B6:BU95")
 
-gross_output <- gross_output |>
+temp_go <- temp_go |>
   rename(va_ind = "...1") |>
   rename_with(~ paste0("y", .x, recycle0 = TRUE), !va_ind) |>
   mutate(
@@ -107,7 +103,7 @@ chain_indexes <- chain_indexes |>
     .before = 1
     )
 
-gross_output <- gross_output |>
+temp_go <- temp_go |>
   bind_rows(chain_indexes)
 
 # **
@@ -117,8 +113,7 @@ gross_output <- gross_output |>
 # reshape long y, i(va_ind field) j(year)
 # reshape wide y, i(va_ind year) j(field, string)
 # sort va_ind year
-
-gross_output <- gross_output |>
+temp_go <- temp_go |>
   # Trim leading whitespace from va_ind
   mutate(va_ind = str_trim(va_ind)) |>
   # Reshape long: gather all y* columns into year and y
@@ -144,11 +139,11 @@ gross_output <- gross_output |>
 # 	replace y`X'q = y`X'q* y`X'09 / 100
 # 	drop temp y`X'09
 # }
-value_09 <- gross_output |>
+value_09 <- temp_go |>
   filter(year == 2009) |>
   select(va_ind, value_2009 = go)
 
-gross_output <- gross_output |>
+temp_go <- temp_go |>
   left_join(value_09) |>
   mutate(goq = goq * value_2009 / 100) |>
   select(-value_2009)
@@ -160,7 +155,7 @@ gross_output <- gross_output |>
 # 	local nn = substr("`X'", 2, .)
 #    	rename `X' aa1_`nn'
 # }
-gross_output <- gross_output |>
+temp_go <- temp_go |>
   # Divide by 1000 to put data in billions
   mutate(across(!c(va_ind, year), ~ .x / 1000)) |>
   rename_with(~ paste0("aa1_", .x, recycle0 = TRUE), !c(va_ind, year))
@@ -173,11 +168,11 @@ gross_output <- gross_output |>
 # if abs(`r(mean)')>0.001 BREAK
 # drop test* _m
 # pause
-gross_output <- gross_output |>
-  left_join(select(bea_mapping, va_ind, beacode))
+temp_go <- temp_go |>
+  left_join(select(mapping, !starts_with("emp_ind")))
 
 # Break if validation fails
-if (sum(!is.na(gross_output$beacode)) != 5467) {
+if (sum(!is.na(temp_go$beacode)) != 5467) {
   stop("VALIDATION FAILED: Expected 5467 matched observations (77 industries x 71 years)")
 }
 
@@ -187,13 +182,10 @@ if (sum(!is.na(gross_output$beacode)) != 5467) {
 # drop if year == .
 # drop if inlist(va_ind,"Hospitals","Nursing and residential care facilities") // keep aggregated because available over longer period
 # drop va_ind
-gross_output <- gross_output |>
+temp_go <- temp_go |>
   drop_na(beacode, year) |>
   filter(! va_ind %in% c("Hospitals","Nursing and residential care facilities")) |>
   select(-va_ind)
-
-gross_output |>
-  filter(beacode == 1130)
 
 # * aggregate (applies only for 3360)
 # ds beacode year, not
@@ -206,7 +198,7 @@ gross_output |>
 # sort beacode year
 # isid beacode year
 # save temp_go, replace
-temp_go <- gross_output |>
+temp_go <- temp_go |>
   group_by(beacode,year) |>
   summarize(across(starts_with("aa1"), sum)) |>
   ungroup()
@@ -214,8 +206,6 @@ temp_go <- gross_output |>
 if (anyDuplicated(temp_go[c("beacode", "year")]) > 0) {
   warning("beacode-year combinations are not unique")
 }
-
-temp_go <- gross_output
 
 # 
 # **
@@ -335,16 +325,28 @@ temp_go <- gross_output
 # * fill-in non-overlapping id
 # use mapping,clear
 # collapse (max) nonov, by(beacode)
-# merge 1:m beacode using temp,nogen keep(matched) 
-# 
-# order beacode year  
-# sort  beacode year 
+mapping <- mapping |>
+  group_by(beacode) |>
+  summarise(nonov_ind = max(nonov_ind, na.rm = TRUE)) |>
+  ungroup()
+
+# merge 1:m beacode using temp,nogen keep(matched)
+# order beacode year
+# sort  beacode year
 # compress
+temp <- temp_go |>
+  inner_join(mapping, by = "beacode") |>
+  select(beacode, year, everything()) |>
+  arrange(beacode, year)
+
 # saveold US_BEA_Main/loaded/BEA_industry_raw, replace
+write_csv(temp, "loaded/BEA_industry_raw.csv")
+
 # erase temp.dta
 # erase temp_go.dta
 # erase temp_emp.dta
 # erase mapping.dta
+rm(value_09, chain_indexes, temp_go, mapping)
 # 
 # ***
 # 
@@ -362,6 +364,17 @@ temp_go <- gross_output
 # g test4 = (aa1_go - 21.683)    	if beacode == "3360" & year == 1948	// aggregated industry
 # g test5 = (aa1_goq - 340.680)   if beacode == "2110" & year == 2017	
 # egen test6 = max(aa1_go - aa1_goq )    if year == 2009
+temp |>
+  filter(beacode == "6220" & year == 2014) |>
+  select(aa1_go) |>
+  first() == 964.913
+
+temp |>
+  filter(beacode == "3360" & year == 1948) |>
+  select(aa1_go) |>
+  first() == 21.683
+
+rm(temp)
 # 
 # **** totals
 # egen totgo = sum(aa1_go*nonov), by(year )
