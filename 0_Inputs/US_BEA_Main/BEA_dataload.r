@@ -10,8 +10,6 @@ library(readxl)
 setwd(dirname(this.path()))
 
 # Target output
-BEA_industry_dta <- haven::read_dta("0_Inputs/US_BEA_Main/loaded/BEA_industry_raw.dta")
-
 # *************** DESCRIPTION ******************************************
 # * Loads industry-level datasets from the BEA 
 # *
@@ -189,7 +187,7 @@ if (sum(!is.na(gross_output$beacode)) != 5467) {
 # drop if year == .
 # drop if inlist(va_ind,"Hospitals","Nursing and residential care facilities") // keep aggregated because available over longer period
 # drop va_ind
-gross_output |>
+gross_output <- gross_output |>
   drop_na(beacode, year) |>
   filter(! va_ind %in% c("Hospitals","Nursing and residential care facilities")) |>
   select(-va_ind)
@@ -197,7 +195,6 @@ gross_output |>
 gross_output |>
   filter(beacode == 1130)
 
-# 
 # * aggregate (applies only for 3360)
 # ds beacode year, not
 # foreach X of varlist `r(varlist)' {
@@ -209,6 +206,17 @@ gross_output |>
 # sort beacode year
 # isid beacode year
 # save temp_go, replace
+temp_go <- gross_output |>
+  group_by(beacode,year) |>
+  summarize(across(starts_with("aa1"), sum)) |>
+  ungroup()
+
+if (anyDuplicated(temp_go[c("beacode", "year")]) > 0) {
+  warning("beacode-year combinations are not unique")
+}
+
+temp_go <- gross_output
+
 # 
 # **
 # 
