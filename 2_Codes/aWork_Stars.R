@@ -175,7 +175,7 @@ main_dataset <- main_dataset %>%
 main_dataset <- main_dataset |>
   mutate(
     sy = sale / (y * 1e3),
-    sye = sale*(1-aa1_pctfor)/(y*1e3)
+    # sye = sale*(1-aa1_pctfor)/(y*1e3)
     )
 
 # 
@@ -351,10 +351,10 @@ main_dataset <- main_dataset |>
   mutate(
     # Top 20 (star)
     sys_star = sum(sy * star, na.rm = TRUE),
-    syes_star = sum(sye * star, na.rm = TRUE),
+    # syes_star = sum(sye * star, na.rm = TRUE),
     # Top 4*Ind (istar)
     sys_istar = sum(sy * istar, na.rm = TRUE),
-    syes_istar = sum(sye * istar, na.rm = TRUE)
+    # syes_istar = sum(sye * istar, na.rm = TRUE)
   ) |>
   ungroup() |>
   arrange(gvkey, year)
@@ -403,9 +403,9 @@ processed_data <- tempanalysis_stars |>
 processed_data |>
   filter(oo) |>
   ggplot(aes(x = year)) +
-  geom_line(aes(y = syes_star)) +
+  # geom_line(aes(y = syes_star)) +
   geom_line(aes(y = sys_star)) +
-  geom_line(aes(y = syes_istar)) +
+  # geom_line(aes(y = syes_istar)) +
   geom_line(aes(y = sys_istar))
 # 
 # 
