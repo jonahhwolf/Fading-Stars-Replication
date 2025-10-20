@@ -1,5 +1,10 @@
 library(haven)
 library(tidyverse)
+library(this.path)
+
+setwd(dirname(this.path()))
+setwd("../../")
+
 # clear all
 # set more off 
 # pause off
@@ -21,13 +26,11 @@ library(tidyverse)
 # Load BEA to industry mapping
 bea_mapping <- read_csv("Temp/bea2industry.csv")
 
-# bea_mapping <- bea_mapping |>
-#   select(-mneind_naics)
-
 # Merge with BEA industry raw data
-bea_data <- read_dta("0_Inputs/US_BEA_Main/loaded/BEA_industry_raw.dta")
+# bea_data <- read_dta("0_Inputs/US_BEA_Main/loaded/BEA_industry_raw.dta")
+bea_data <- read_csv("0_Inputs/US_BEA_Main/loaded/BEA_industry_raw.csv")
 
-merged_data <- bea_mapping |>
+bea_mapped <- bea_mapping |>
   left_join(bea_data, by = "beacode")
 
 # * Aggregate
@@ -39,7 +42,7 @@ merged_data <- bea_mapping |>
 # }
 # bys ind_short year: keep if _n == 1
 
-merged_data <- merged_data |>
+bea_mapped <- bea_mapped |>
   group_by(ind_short, year) |>
   summarise(
     across(starts_with("aa"), ~ sum(.x, na.rm = TRUE)),
@@ -55,10 +58,11 @@ merged_data <- merged_data |>
 # rename ind_short indcode
 # compress
 # saveold Temp/BEA_mapped, replace
-
-merged_data |>
+bea_mapped <- bea_mapped |>
   arrange(ind_short, year) |>
-  rename(indcode = ind_short) |>
+  rename(indcode = ind_short)
+
+bea_mapped |>
   write_csv("Temp/BEA_mapped.csv")
 
 # 
@@ -74,6 +78,24 @@ merged_data |>
 # g test5 = (aa1_goq - 340.680)   if indcode == "Min_oil_and_gas" & year == 2017	
 # * prices
 # g test6 = (aa1_pgo - 105.157) if indcode == "Retail_trade" & year == 2012
+bea_mapped |>
+  filter(indcode == "Health_hospitals" & year == 2014) |>
+  select(aa1_go) |>
+  first() == 964.913
+
+bea_mapped |>
+  filter(indcode == "Dur_transp" & year == 1948) |>
+  select(aa1_go) |>
+  first() == 21.683
+
+bea_mapped |>
+  filter(indcode == "Retail_trade" & year == 2012) |>
+  select(aa1_pgo) |>
+  first() |>
+  round() == 105
+
+rm(bea_mapped)
+
 # egen test7 = max(aa1_pgo - 100) if year == 2009
 # * totals
 # egen totgo = sum(aa1_go*nonov), by(year )
