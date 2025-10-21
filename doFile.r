@@ -62,8 +62,8 @@ write.csv(NAICS2BEA, "Temp/naics2bea.csv")
 # save Temp/bea2industry, replace
 BEA2INDUSTRY <- read_xlsx("1_Mapping_Files/BEA_mapping_stars.xlsx") |>
   select(c(beacode, ind_short, sector, empsector_indicator, mneind_naics)) |>
-  filter(beacode != "") |>
-  distinct(beacode, ind_short)
+  drop_na(beacode) |>
+  distinct(beacode, ind_short, .keep_all = TRUE)
 
 write.csv(BEA2INDUSTRY, "Temp/bea2industry.csv", row.names = FALSE)
 
