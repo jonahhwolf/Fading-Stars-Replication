@@ -1,6 +1,4 @@
-library(haven)
 library(tidyverse)
-
 
 # clear all
 # set more off 
