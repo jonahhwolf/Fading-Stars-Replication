@@ -3,6 +3,7 @@
 # set logtype text
 # tempfile tfile
 library(fredr)
+library(lubridate)
 library(tidyverse)
 library(data.table)
 library(this.path)
@@ -28,10 +29,12 @@ setwd(dirname(this.path()))
 # lab var emp_civil  "Civilian Employment (Millions)"
 # drop date daten month 
 # saveold `tfile', replace
-
 emp_civil <- fredr("CE16OV", frequency = "a", aggregation_method = "eop") |>
-  select(date, value) |>
-  rename(emp_civil = value)
+  mutate(
+    value = value / 1000,
+    year = year(date)
+    ) |>
+  select(emp_civil = value, year)
 
 # *
 # 
@@ -43,8 +46,8 @@ emp_civil <- fredr("CE16OV", frequency = "a", aggregation_method = "eop") |>
 # rename GDPA y
 # lab var y 		"GDP (Billions)"
 GDPA <- fredr("GDPA") |>
-  select(date, value) |>
-  rename(y = value)
+  mutate(year = year(date)) |>
+  select(year, y = value)
 
 # *
 # 
@@ -55,7 +58,7 @@ GDPA <- fredr("GDPA") |>
 # compress
 # keep if year >= 1960
 # save Fred/loaded/fred_data, replace
-fred_data <- left_join(emp_civil, GDPA, by = "date") |>
-  filter(year(date) >= 1960)
+fred_data <- left_join(emp_civil, GDPA, by = "year") |>
+  filter(year >= 1960)
 
 fwrite(fred_data, "loaded/fred_data.csv")
