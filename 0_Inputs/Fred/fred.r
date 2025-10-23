@@ -2,7 +2,6 @@
 # set more off 
 # set logtype text
 # tempfile tfile
-
 library(fredr)
 library(tidyverse)
 library(data.table)
@@ -43,10 +42,9 @@ emp_civil <- fredr("CE16OV", frequency = "a", aggregation_method = "eop") |>
 # drop date daten
 # rename GDPA y
 # lab var y 		"GDP (Billions)"
- 
 GDPA <- fredr("GDPA") |>
   select(date, value) |>
-  rename(GDPA = value)
+  rename(y = value)
 
 # *
 # 
@@ -57,7 +55,6 @@ GDPA <- fredr("GDPA") |>
 # compress
 # keep if year >= 1960
 # save Fred/loaded/fred_data, replace
-
 fred_data <- left_join(emp_civil, GDPA, by = "date") |>
   filter(year(date) >= 1960)
 
