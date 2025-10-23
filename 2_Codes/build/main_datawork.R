@@ -40,9 +40,9 @@ setwd("../../")
 
 # main_dataset_firm <- read_csv('0_Inputs/NA_Compustat_Annual/loaded/NA_compustat.csv')
 
-main_dataset_firm <- read_dta('0_Inputs/NA_Compustat_Annual/loaded/NA_compustat.dta', n_max = 5000)
+tempfirm <- read_dta('0_Inputs/NA_Compustat_Annual/loaded/NA_compustat.dta')
 
-main_dataset_firm <- main_dataset_firm |>
+tempfirm <- tempfirm |>
   filter(year >= 1955 & year <= 2017) |>
   mutate(beacode = as.character(beacode))
 
@@ -52,11 +52,11 @@ main_dataset_firm <- main_dataset_firm |>
 # drop _m
 bea2industry <- read_csv("Temp/bea2industry.csv")
 
-main_dataset_firm <- main_dataset_firm |>
+tempfirm <- tempfirm |>
   left_join(bea2industry, by = "beacode") |>
   filter(!is.na(beacode))
 
-main_dataset_firm |>
+tempfirm |>
   filter(!beacode %in% bea2industry$beacode)
 
 # * fill-in for other
@@ -67,7 +67,7 @@ main_dataset_firm |>
 # * drop USPS
 # drop if naicsbea == 491
 # rename ind_short indcode
-main_dataset_firm <- main_dataset_firm |>
+tempfirm <- tempfirm |>
   mutate(
     ind_short = ifelse(naicsbea == 999, "Other", ind_short),
     sector = ifelse(naicsbea == 999, "Other", sector),
@@ -88,7 +88,7 @@ main_dataset_firm <- main_dataset_firm |>
 # replace mneind_sic = "TCU" if inlist(mneind_sic,"Communications","Electric, gas, and sanitary services","Transportation") & year <= 1988
 # replace mneind_sic = "CU" if inlist(mneind_sic,"Communications","Electric, gas, and sanitary services") & inrange(year,1989,1993)
 # save tempfirm, replace
-main_dataset_firm <- main_dataset_firm |>
+tempfirm <- tempfirm |>
   mutate(sicbea = ifelse(sic2 %in% c(37, 48), sic3, sic2))
 
 # **
@@ -107,9 +107,9 @@ bea_mapped <- read_csv("Temp/BEA_mapped.csv")
 ind_vars <- bea_mapped |>
   select(indcode, year, starts_with("aa1"))
 
-anti_join(main_dataset_firm, ind_vars, by = c("indcode", "year"))
+anti_join(tempfirm, ind_vars, by = c("indcode", "year"))
 
-tempfirm <- main_dataset_firm |>
+tempfirm <- tempfirm |>
   left_join(ind_vars, by = c("indcode", "year"))
 
 # *sector
