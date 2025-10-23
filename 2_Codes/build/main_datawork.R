@@ -144,13 +144,30 @@ tempfirm <- tempfirm |>
 # rename aa1_goq aa_goq 
 # rename aa1_ftpt aa_ftpt 
 # keep year aa_*
+year_vars <- bea_mapped |>
+  filter(empsector_indicator == 1) |>
+  select(sector, year, aa1_go, aa1_goq) |>
+  drop_na(aa1_go, aa1_goq) |>
+  group_by(year) |>
+  summarise(across(starts_with("aa1"), sum)) |>
+  mutate(aa_pgo = 100 * aa1_go / aa1_goq ) |>
+  rename(aa_goq = aa1_goq) |>
+  select(year, starts_with("aa_"))
+
 # merge 1:m year using tempfirm, keep(matched using) 
 # drop _m
 # replace aas_goq = aa_goq if indcode == "Other"
 # replace aa1_pgo = aa_pgo if indcode == "Other" 
 # replace aas_pgo = aa_pgo if indcode == "Other" 
 # replace aas_ftpt = aa_ftpt if indcode == "Other"
-# 
+tempfirm <- tempfirm |>
+  left_join(year_vars, by = year) |>
+  mutate(
+    aas_goq = if_else(indcode == "Other", aa_goq, aas_goq),
+    aa1_pgo = if_else(indcode == "Other", aa_pgo, aa1_pgo),
+    aas_pgo = if_else(indcode == "Other", aa_pgo, aas_pgo)
+    )
+
 # **
 # 
 # /* ------------------------ */
@@ -210,8 +227,8 @@ tempfirm <- tempfirm |>
 # * FRED
 # merge m:1 year using 0_Inputs/Fred/loaded/fred_data, nogen keep(matched master)
 # save tempfirm, replace
-fred_data <- read_csv("0_Inputs/Fred/loaded/fred_data.csv")
-
+# fred_data <- read_csv("0_Inputs/Fred/loaded/fred_data.csv")
+fred_data <- read_dta("0_Inputs/Fred/loaded/fred_data.dta")
 
 # 
 # * FERNALD TFP
