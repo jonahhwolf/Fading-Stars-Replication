@@ -161,7 +161,7 @@ year_vars <- bea_mapped |>
 # replace aas_pgo = aa_pgo if indcode == "Other" 
 # replace aas_ftpt = aa_ftpt if indcode == "Other"
 tempfirm <- tempfirm |>
-  left_join(year_vars, by = year) |>
+  left_join(year_vars, by = "year") |>
   mutate(
     aas_goq = if_else(indcode == "Other", aa_goq, aas_goq),
     aa1_pgo = if_else(indcode == "Other", aa_pgo, aa1_pgo),
