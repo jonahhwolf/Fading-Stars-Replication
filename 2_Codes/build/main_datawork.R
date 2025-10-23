@@ -1,3 +1,4 @@
+library(haven)
 library(tidyverse)
 library(this.path)
 
@@ -37,9 +38,11 @@ setwd("../../")
 # keep if inrange(year,1955,2017)
 # tostring beacode, replace
 
-NA_compustat <- read.csv('0_Inputs/NA_Compustat_Annual/loaded/NA_compustat.csv')
+# main_dataset_firm <- read_csv('0_Inputs/NA_Compustat_Annual/loaded/NA_compustat.csv')
 
-NA_compustat <- NA_compustat |>
+main_dataset_firm <- read_dta('0_Inputs/NA_Compustat_Annual/loaded/NA_compustat.dta', n_max = 5000)
+
+main_dataset_firm <- main_dataset_firm |>
   filter(year >= 1955 & year <= 2017) |>
   mutate(beacode = as.character(beacode))
 
@@ -47,15 +50,14 @@ NA_compustat <- NA_compustat |>
 # merge m:1 beacode using Temp/bea2industry, keep(master matched)
 # tab naicsbea _merge if _m == 1 // USPS (491) and other (999)  --> OK
 # drop _m
+bea2industry <- read_csv("Temp/bea2industry.csv")
 
-bea2industry <- read.csv("Temp/bea2industry.csv")
-
-cstat_bea <- NA_compustat |>
+main_dataset_firm <- main_dataset_firm |>
   left_join(bea2industry, by = "beacode") |>
   filter(!is.na(beacode))
 
-anti_join(NA_compustat, bea2industry, by = "beacode") |>
-  filter(!is.na(beacode))
+main_dataset_firm |>
+  filter(!beacode %in% bea2industry$beacode)
 
 # * fill-in for other
 # replace ind_short 	 = "Other" if naicsbea == 999
@@ -65,13 +67,12 @@ anti_join(NA_compustat, bea2industry, by = "beacode") |>
 # * drop USPS
 # drop if naicsbea == 491
 # rename ind_short indcode
-
-cstat_bea <- cstat_bea |>
+main_dataset_firm <- main_dataset_firm |>
   mutate(
     ind_short = ifelse(naicsbea == 999, "Other", ind_short),
-#    sector = ifelse(naicsbea == 999, "Other", sector),
-#    empsector_indicator = ifelse(naicsbea == 999, 1, empsector_indicator),
-#    mneind_naics = ifelse(naicsbea == 999, "All", mneind_naics)
+    sector = ifelse(naicsbea == 999, "Other", sector),
+    empsector_indicator = ifelse(naicsbea == 999, 1, empsector_indicator),
+    mneind_naics = ifelse(naicsbea == 999, "All", mneind_naics)
   ) |>
   filter(naicsbea != 491) |>
   rename(indcode = ind_short)
@@ -87,10 +88,9 @@ cstat_bea <- cstat_bea |>
 # replace mneind_sic = "TCU" if inlist(mneind_sic,"Communications","Electric, gas, and sanitary services","Transportation") & year <= 1988
 # replace mneind_sic = "CU" if inlist(mneind_sic,"Communications","Electric, gas, and sanitary services") & inrange(year,1989,1993)
 # save tempfirm, replace
-cstat_bea <- cstat_bea |>
+main_dataset_firm <- main_dataset_firm |>
   mutate(sicbea = ifelse(sic2 %in% c(37, 48), sic3, sic2))
 
-# 
 # **
 # 
 # /* ---------------------------- */
@@ -102,20 +102,37 @@ cstat_bea <- cstat_bea |>
 # tab indcode if _m == 1
 # drop _m
 # save tempfirm, replace
-# 
+bea_mapped <- read_csv("Temp/BEA_mapped.csv")
+
+ind_vars <- bea_mapped |>
+  select(indcode, year, starts_with("aa1"))
+
+anti_join(main_dataset_firm, ind_vars, by = c("indcode", "year"))
+
+tempfirm <- main_dataset_firm |>
+  left_join(ind_vars, by = c("indcode", "year"))
+
 # *sector
 # use "Temp/BEA_mapped",clear
 # keep if empsector_indicator == 1
 # keep sector year aa1_goq aa1_ftpt aa1_pgo
-# rename aa1_goq aas_goq 
-# rename aa1_pgo aas_pgo 
-# rename aa1_ftpt aas_ftpt 
+# rename aa1_goq aas_goq
+# rename aa1_pgo aas_pgo
+# rename aa1_ftpt aas_ftpt
 # drop if aas_ftpt == .
-# merge 1:m sector year using tempfirm, keep(matched using) 
+# merge 1:m sector year using tempfirm, keep(matched using)
 # tab sector if _m == 2
 # drop _m
 # save tempfirm, replace
-# 
+sector_vars <- bea_mapped |>
+  filter(empsector_indicator == 1) |>
+  select(sector, year, aas_goq = aa1_goq, aas_pgo = aa1_pgo)
+
+anti_join(tempfirm, sector_vars, by = c("sector", "year"))
+
+tempfirm <- tempfirm |>
+  left_join(sector_vars, by = c("sector", "year"))
+
 # * For "Other" industry, fill in with wtd. average of private industries
 # * We don't want to drop because important stars show up here (GE, Berkshire)
 # use "Temp/BEA_mapped",clear
@@ -193,6 +210,9 @@ cstat_bea <- cstat_bea |>
 # * FRED
 # merge m:1 year using 0_Inputs/Fred/loaded/fred_data, nogen keep(matched master)
 # save tempfirm, replace
+fred_data <- read_csv("0_Inputs/Fred/loaded/fred_data.csv")
+
+
 # 
 # * FERNALD TFP
 # import excel "0_Inputs/data_quarterly_2018.09.07.xlsx", sheet("annual") firstrow clear case(l)
