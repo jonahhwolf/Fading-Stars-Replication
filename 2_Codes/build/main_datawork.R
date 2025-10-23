@@ -227,8 +227,10 @@ tempfirm <- tempfirm |>
 # * FRED
 # merge m:1 year using 0_Inputs/Fred/loaded/fred_data, nogen keep(matched master)
 # save tempfirm, replace
-# fred_data <- read_csv("0_Inputs/Fred/loaded/fred_data.csv")
-fred_data <- read_dta("0_Inputs/Fred/loaded/fred_data.dta")
+fred_data <- read_csv("0_Inputs/Fred/loaded/fred_data.csv")
+
+tempfirm <- tempfirm |>
+  left_join(fred_data, by = "year")
 
 # 
 # * FERNALD TFP
