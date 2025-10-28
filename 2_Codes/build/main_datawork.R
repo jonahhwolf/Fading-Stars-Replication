@@ -52,12 +52,12 @@ tempfirm <- tempfirm |>
 # drop _m
 bea2industry <- read_csv("Temp/bea2industry.csv")
 
-tempfirm <- tempfirm |>
-  left_join(bea2industry, by = "beacode") |>
-  filter(!is.na(beacode))
-
 tempfirm |>
-  filter(!beacode %in% bea2industry$beacode)
+  anti_join(bea2industry, by = "beacode") |>
+  count(naicsbea)
+  
+tempfirm <- tempfirm |>
+  left_join(bea2industry, by = "beacode")
 
 # * fill-in for other
 # replace ind_short 	 = "Other" if naicsbea == 999
