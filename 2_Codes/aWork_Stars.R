@@ -1,3 +1,4 @@
+library(haven)
 library(tidyverse)
 
 # clear all
@@ -46,8 +47,8 @@ library(tidyverse)
 # drop if aa1_pgo == .	// pre-1963 only
 # replace me=0 if me==.
 # replace ps = -1 if ps < -1
-# 
-main_dataset <- read_dta("3_Final_data/main_dataset_firm.dta") |>
+
+main_dataset <- read_csv("3_Final_data/main_dataset_firm.csv") |>
   drop_na(year, gvkey, at, sale, emp, oiadp, aa1_pgo) |>
   filter(
     loc == "USA",
@@ -359,7 +360,9 @@ main_dataset <- main_dataset |>
 
 # save Temp/tempanalysis_stars, replace
 main_dataset |>
-  select(star, year, year0, sys_star, sys_istar, syes_star, syes_istar) |>
+  select(star, year, year0, sys_star, sys_istar
+         # syes_star, syes_istar
+         ) |>
   write_csv("3_Final_data/tempanalysis_stars.csv")
 
 # */
