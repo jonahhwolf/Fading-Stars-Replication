@@ -1,4 +1,3 @@
-library(haven)
 library(tidyverse)
 library(this.path)
 
@@ -27,7 +26,6 @@ setwd("../../")
 bea_mapping <- read_csv("Temp/bea2industry.csv")
 
 # Merge with BEA industry raw data
-# bea_data <- read_dta("0_Inputs/US_BEA_Main/loaded/BEA_industry_raw.dta")
 bea_data <- read_csv("0_Inputs/US_BEA_Main/loaded/BEA_industry_raw.csv")
 
 bea_mapped <- bea_mapping |>
