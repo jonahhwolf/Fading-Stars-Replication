@@ -20,8 +20,7 @@ funda <- read.csv("./raw/funda.csv")
 
 # merge m:1 gvkey using NA_Compustat_Annual/raw/company, nogen keep(matched master) keepusing(loc sic naics)
 # duplicates drop gvkey fyear, force
-company <- read.csv("./raw/company.csv") |>
-  select(c(gvkey, loc, sic, naics))
+company <- read_csv("./raw/company.csv", col_select = c(gvkey, loc, sic, naics))
 
 company_funda <- funda |>
   left_join(company, relationship = "many-to-one", by = "gvkey") |>
