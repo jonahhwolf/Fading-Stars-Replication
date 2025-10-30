@@ -1,3 +1,4 @@
+library(data.table)
 library(haven)
 library(tidyverse)
 library(this.path)
