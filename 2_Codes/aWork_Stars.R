@@ -1,5 +1,9 @@
 library(haven)
+library(this.path)
 library(tidyverse)
+
+setwd(dirname(this.path()))
+setwd("../")
 
 # clear all
 # set more off 
@@ -48,7 +52,9 @@ library(tidyverse)
 # replace me=0 if me==.
 # replace ps = -1 if ps < -1
 
-main_dataset <- read_csv("3_Final_data/main_dataset_firm.csv") |>
+main_dataset <- read_dta("3_Final_data/main_dataset_firm.dta")
+
+main_dataset <- main_dataset |>
   drop_na(year, gvkey, at, sale, emp, oiadp, aa1_pgo) |>
   filter(
     loc == "USA",
@@ -60,6 +66,9 @@ main_dataset <- read_csv("3_Final_data/main_dataset_firm.csv") |>
     me = ifelse(is.na(me), 0, me),
     ps = ifelse(ps < -1, -1, ps)
   )
+
+nrow(main_dataset)
+# 295959
 
 # * Real output deflated with industry prices
 # g sale09 = sale/(aa1_pgo/100)
@@ -77,6 +86,8 @@ main_dataset <- read_csv("3_Final_data/main_dataset_firm.csv") |>
 # xtset gvkey year
 # encode(indcode),g(indgr)
 
+indcode_levels <- sort(unique(main_dataset$indcode), method = "radix")
+
 main_dataset <- main_dataset |>
   # Create real sales variable
   mutate(sale09 = sale / (aa1_pgo / 100)) |>
@@ -89,18 +100,27 @@ main_dataset <- main_dataset |>
   # Adjust year0 for pre-1960 entries
   mutate(year0 = ifelse(year < 1960, 1960, year0)) |>
   # Standardize company names
-  # mutate(
-  #   conm = case_when(
-  #     conm == "INTL BUSINESS MACHINES CORP" ~ "IBM",
-  #     conm == "DU PONT (E I) DE NEMOURS" ~ "DUPONT",
-  #     conm %in% c("UNITED STATES STEEL CORP", "USX CORP-CONSOLIDATED") ~ "US STEEL",
-  #     TRUE ~ conm  # keep original name for all others
-  #   )
-  # ) |>
+  mutate(
+    conm = case_when(
+      conm == "INTL BUSINESS MACHINES CORP" ~ "IBM",
+      conm == "DU PONT (E I) DE NEMOURS" ~ "DUPONT",
+      conm %in% c("UNITED STATES STEEL CORP", "USX CORP-CONSOLIDATED") ~ "US STEEL",
+      TRUE ~ conm  # keep original name for all others
+    )
+  ) |>
   # Sort by gvkey and year
   arrange(gvkey, year) |>
   # Create industry group factor variable
-  mutate(indgr = as.numeric(as.factor(indcode)))
+  mutate(indgr = as.numeric(factor(indcode, levels = indcode_levels)))
+
+nrow(main_dataset)
+# 293176
+mean(main_dataset$year0)
+# 1980.32
+mean(main_dataset$indgr)
+# 28.63963
+mean(main_dataset$sale09)
+# 1615.495
 
 # 
 # *
@@ -360,10 +380,10 @@ main_dataset <- main_dataset |>
 
 # save Temp/tempanalysis_stars, replace
 main_dataset |>
-  select(star, year, year0, sys_star, sys_istar
+  select(gvkey, star, year, year0, sys_star, sys_istar
          # syes_star, syes_istar
          ) |>
-  write_csv("3_Final_data/tempanalysis_stars.csv")
+  write_csv("Temp/tempanalysis_stars.csv")
 
 # */
 # 
