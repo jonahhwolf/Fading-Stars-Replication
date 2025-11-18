@@ -197,6 +197,9 @@ main_dataset <- main_dataset |>
     # sye = sale*(1-aa1_pctfor)/(y*1e3)
     )
 
+mean(main_dataset$sy, na.rm = TRUE)
+# .000168
+
 # 
 # label variable me_share "Share of Mkt Val Equity"
 # label variable sale_share "Sale Share of Compustat Sample"
@@ -283,13 +286,26 @@ main_dataset <- main_dataset |>
   mutate(rkme = ifelse(me == 0 | is.na(me), NA, rkme)) |>
   mutate(star = (rkme <= 20 & me > 0 & !is.na(rkme)))
 
+main_dataset |>
+  group_by(star) |>
+  count()
+# 1260 stars
+
 # 
 # * no oil
 # g rkme_exoil = rkme
 # replace rkme_exoil = . if inlist(indcode,"Min_oil_and_gas","Nondur_petro")
-# sort year rkme_exoil 
+# sort year rkme_exoil
 # bys year: replace rkme_exoil = _n if ~inlist(indcode,"Min_oil_and_gas","Nondur_petro")
 # g star_exoil  = rkme_exoil <= 20 & me > 0
+main_dataset <- main_dataset |>
+  mutate(oil = indcode %in% c("Min_oil_and_gas", "Nondur_petro")) |>
+  group_by(year, oil) |>
+  arrange(rkme) |>
+  mutate(rkme_exoil = ifelse(oil, NA, row_number())) |>
+  ungroup() |>
+  mutate(star_exoil = !(oil) & rkme_exoil <= 20 & me > 0)
+
 # 
 # **
 # 
