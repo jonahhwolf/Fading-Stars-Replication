@@ -39,20 +39,20 @@ setwd("../../")
 # keep if inrange(year,1955,2017)
 # tostring beacode, replace
 
-tempfirm <- read_csv('0_Inputs/NA_Compustat_Annual/loaded/NA_compustat.csv')
+# tempfirm_r <- read_csv('0_Inputs/NA_Compustat_Annual/loaded/NA_compustat.csv')
 
-tempfirm_stata <- read_dta('0_Inputs/NA_Compustat_Annual/loaded/NA_compustat.dta')
+# tempfirm_stata <- read_dta('0_Inputs/NA_Compustat_Annual/loaded/NA_compustat.dta')
 
-tempfirm_missing <- anti_join(tempfirm_stata, tempfirm, by = c("year", "gvkey"))
+# tempfirm_missing <- anti_join(tempfirm_stata, tempfirm, by = c("year", "gvkey"))
 
-tempfirm_missing |>
-  fwrite("3_Final_Data/tempfirm_missing.csv")
-
-rm(tempfirm_stata)
+tempfirm <- read_dta('0_Inputs/NA_Compustat_Annual/loaded/NA_compustat.dta')
 
 tempfirm <- tempfirm |>
   filter(year >= 1955 & year <= 2017) |>
   mutate(beacode = as.character(beacode))
+
+nrow(tempfirm)
+# 442403
 
 # * BEA NAICS
 # merge m:1 beacode using Temp/bea2industry, keep(master matched)
@@ -63,9 +63,15 @@ bea2industry <- read_csv("Temp/bea2industry.csv")
 tempfirm |>
   anti_join(bea2industry, by = "beacode") |>
   count(naicsbea)
+
+# codes 491 and 999
   
 tempfirm <- tempfirm |>
   left_join(bea2industry, by = "beacode")
+
+tempfirm |>
+  group_by(naicsbea) |>
+  count()
 
 # * fill-in for other
 # replace ind_short 	 = "Other" if naicsbea == 999
@@ -84,11 +90,19 @@ tempfirm <- tempfirm |>
   ) |>
   filter(naicsbea != 491) |>
   rename(indcode = ind_short)
-  
-# 
+
+nrow(tempfirm)
+# 442379
+
+sum(tempfirm$empsector_indicator)
+# 67615
+
 # * SIC to MNE pre-1997
 # g sicbea = sic2
 # replace sicbea = sic3 if inlist(sic2,37,48)
+tempfirm <- tempfirm |>
+  mutate(sicbea = ifelse(sic2 %in% c(37, 48), sic3, sic2))
+
 # merge m:1 sicbea using Temp/sic2mne, keep(master matched)
 # tab sicbea if _m == 1	// other (99)
 # drop _m
@@ -96,8 +110,6 @@ tempfirm <- tempfirm |>
 # replace mneind_sic = "TCU" if inlist(mneind_sic,"Communications","Electric, gas, and sanitary services","Transportation") & year <= 1988
 # replace mneind_sic = "CU" if inlist(mneind_sic,"Communications","Electric, gas, and sanitary services") & inrange(year,1989,1993)
 # save tempfirm, replace
-tempfirm <- tempfirm |>
-  mutate(sicbea = ifelse(sic2 %in% c(37, 48), sic3, sic2))
 
 # **
 # 
@@ -115,7 +127,8 @@ bea_mapped <- read_csv("Temp/BEA_mapped.csv")
 ind_vars <- bea_mapped |>
   select(indcode, year, starts_with("aa1"))
 
-anti_join(tempfirm, ind_vars, by = c("indcode", "year"))
+nrow(anti_join(tempfirm, ind_vars, by = c("indcode", "year")))
+# 6517
 
 tempfirm <- tempfirm |>
   left_join(ind_vars, by = c("indcode", "year"))
