@@ -306,7 +306,6 @@ main_dataset <- main_dataset |>
   ungroup() |>
   mutate(star_exoil = !(oil) & rkme_exoil <= 20 & me > 0)
 
-# 
 # **
 # 
 # *** INDUSTRY STARS ***
@@ -319,7 +318,7 @@ main_dataset <- main_dataset |>
   mutate(irkme = row_number()) |>
   ungroup() |>
   mutate(irkme = ifelse(me == 0 | is.na(me), NA, irkme))
-# 
+
 # gsort year indgr -sale
 # bys year indgr: g irks = _n
 # replace irks = . if inlist(sale,0,.)
@@ -330,31 +329,26 @@ main_dataset <- main_dataset |>
   ungroup() |>
   mutate(irks = ifelse(sale == 0 | is.na(sale), NA, irks))
   
-# 
 # * fill in ME ranks using sales if not enough me-based ranks
 # egen nirkme = sum(irkme~=.),by(indcode year)
 # replace irkme = irks if nirkme < 4
 # 
 # g istar = irkme<=4
 # g istar_exoil  = istar * ~inlist(indcode,"Min_oil_and_gas","Nondur_petro")
-# 
 
 main_dataset <- main_dataset |>
   # Count non-missing industry rankings by industry and year
   group_by(indcode, year) |>
   mutate(nirkme = sum(!is.na(irkme))) |>
   ungroup() |>
-  
-  # Fill in ME ranks using sales if not enough ME-based ranks
-  mutate(irkme = ifelse(nirkme < 4, irks, irkme)) |>
-  
-  # Create industry star indicator (top 4 firms per industry)
-  mutate(istar = (irkme <= 4 & !is.na(irkme))) |>
-  
-  # Create industry star excluding oil/gas industries
   mutate(
+    # Fill in ME ranks using sales if not enough ME-based ranks
+    irkme = ifelse(nirkme < 4, irks, irkme),
+    # Create industry star indicator (top 4 firms per industry)
+    istar = (irkme <= 4 & !is.na(irkme)),
+    # Create industry star excluding oil/gas industries
     istar_exoil = istar & !(indcode %in% c("Min_oil_and_gas", "Nondur_petro"))
-  )
+    )
 
 # g all = 1	// for loops
 # 
@@ -416,6 +410,14 @@ main_dataset |>
 # bys year: g oo = _n ==1
 
 tempanalysis_stars <- read_csv("3_Final_data/tempanalysis_stars.csv")
+
+# temp_dta <- read_dta("Temp/tempanalysis_stars.dta")
+# 
+# temp_missing <- anti_join(temp_analysis_stars, temp_dta, by = c("year", "gvkey"))
+# 
+# temp_missing |>
+#   filter(star & year > year0)
+# 0 observations
 
 processed_data <- tempanalysis_stars |>
   filter(star & year >= year0) |>
