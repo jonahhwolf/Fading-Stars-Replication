@@ -153,12 +153,11 @@ nrow(anti_join(tempfirm, sector_vars, by = c("sector", "year")))
 # 6517
 
 tempfirm <- tempfirm |>
-  left_join(sector_vars, by = c("sector", "year"))
+  left_join(sector_vars, by = c("sector", "year")) |>
+  mutate(across(starts_with("aa"), ~ ifelse(.x == 0, NA, .x)))
 
 tempfirm |>
   summarize(across(starts_with("aa"), ~ mean(.x, na.rm = TRUE)))
-
-# all are slightly off
 
 # * For "Other" industry, fill in with wtd. average of private industries
 # * We don't want to drop because important stars show up here (GE, Berkshire)
