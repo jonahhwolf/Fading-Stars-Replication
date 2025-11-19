@@ -60,7 +60,7 @@ main_dataset <- main_dataset |>
     loc == "USA",
     at > 0,
     sale > 0,
-    emp > 0,
+    emp > 0
   ) |>
   mutate(
     me = ifelse(is.na(me), 0, me),
