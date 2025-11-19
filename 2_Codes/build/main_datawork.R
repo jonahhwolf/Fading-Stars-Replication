@@ -149,10 +149,16 @@ sector_vars <- bea_mapped |>
   filter(empsector_indicator == 1) |>
   select(sector, year, aas_goq = aa1_goq, aas_pgo = aa1_pgo)
 
-anti_join(tempfirm, sector_vars, by = c("sector", "year"))
+nrow(anti_join(tempfirm, sector_vars, by = c("sector", "year")))
+# 6517
 
 tempfirm <- tempfirm |>
   left_join(sector_vars, by = c("sector", "year"))
+
+tempfirm |>
+  summarize(across(starts_with("aa"), ~ mean(.x, na.rm = TRUE)))
+
+# all are slightly off
 
 # * For "Other" industry, fill in with wtd. average of private industries
 # * We don't want to drop because important stars show up here (GE, Berkshire)
@@ -188,6 +194,9 @@ tempfirm <- tempfirm |>
     aa1_pgo = if_else(indcode == "Other", aa_pgo, aa1_pgo),
     aas_pgo = if_else(indcode == "Other", aa_pgo, aas_pgo)
     )
+
+nrow(tempfirm)
+# 442379
 
 # **
 # 
