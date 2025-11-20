@@ -285,10 +285,14 @@ tempfirm <- tempfirm |>
 # sort gvkey year
 # save  3_Final_Data/main_dataset_firm, replace
 # erase tempfirm.dta
-tempfirm |>
+tempfirm <- tempfirm |>
   drop_na(gvkey, indcode) |>
   relocate(gvkey, year, indcode, sale, at) |>
-  arrange(gvkey, year) |>
+  arrange(gvkey, year)
+
+nrow(tempfirm)
+
+tempfirm |>
   fwrite("3_Final_Data/main_dataset_firm.csv")
 
 rm(tempfirm)
