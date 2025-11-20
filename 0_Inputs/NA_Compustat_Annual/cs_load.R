@@ -2,6 +2,7 @@
 ## - loads datasets
 ## - computes basic firm-level variables
 ## - maps firms to industry segments
+library(haven)
 library(tidyverse)
 library(this.path)
 library(DescTools)
@@ -14,17 +15,30 @@ setwd(dirname(this.path()))
 
 ## FUNDA
 # use NA_Compustat_Annual/raw/funda.dta, clear
-funda <- read.csv("./raw/funda.csv")
+# funda <- read_csv("./raw/funda.csv")
+funda <- read_dta("./raw/funda.dta")
+
+nrow(funda)
+
+# 510675
 
 ## COMPANY
 
 # merge m:1 gvkey using NA_Compustat_Annual/raw/company, nogen keep(matched master) keepusing(loc sic naics)
 # duplicates drop gvkey fyear, force
-company <- read_csv("./raw/company.csv", col_select = c(gvkey, loc, sic, naics))
+
+# company <- read_csv("./raw/company.csv", col_select = c(gvkey, loc, sic, naics))
+company <- read_dta("./raw/company.dta", col_select = c(gvkey, loc, sic, naics))
+
+nrow(company)
+# 54783
 
 company_funda <- funda |>
   left_join(company, relationship = "many-to-one", by = "gvkey") |>
   distinct(gvkey, fyear, .keep_all = TRUE)
+
+nrow(company_funda)
+# 510664
 
 rm(company, funda)
 
@@ -32,13 +46,13 @@ rm(company, funda)
 ## by december of fiscal year (same as prcc_c in compustat)
 # rename fyear year
 # g month = 12
-
 company_funda <- company_funda |>
   rename(year = fyear) |>
   mutate(month = 12)
 
 # merge 1:m gvkey year month using NA_Compustat_Annual/loaded/crsp_cpstat_mv, nogen keep(matched master)
-crsp_cpstat_mv <- read.csv("loaded/crsp_cpstat_mv.csv")
+# crsp_cpstat_mv <- read.csv("loaded/crsp_cpstat_mv.csv")
+crsp_cpstat_mv <- read_dta("loaded/crsp_cpstat_mv.dta")
 
 # rename me_crsp me_crsp_dec
 # drop month
@@ -47,6 +61,12 @@ tempcpstat <- company_funda |>
   filter(!is.na(gvkey)) |>
   rename(me_crsp_dec = me_crsp) |>
   select(-month)
+
+nrow(tempcpstat)
+# 510664
+
+mean(tempcpstat$me_crsp_dec, na.rm = TRUE)
+# 2204.75
 
 rm(company_funda, crsp_cpstat_mv)
 
@@ -64,17 +84,17 @@ rm(company_funda, crsp_cpstat_mv)
 # g test_totct = _N
 tempcpstat <- tempcpstat |>
   mutate(datayear = lubridate::year(datadate)) |>
-  filter(!is.na(year) & !is.na(gvkey)) |>
+  drop_na(year, gvkey) |>
   filter(year <= 2017) |>
   filter(!(gvkey == 4828 & year == 2001))
 
 test_totct = nrow(tempcpstat)
+# 446355 <- should be 446354
 
 # # FIRM-LEVEL FIELDS
 # 
 # sort gvkey year
 # xtset gvkey year
-
 tempcpstat <- tempcpstat |>
   arrange(gvkey, year)
 
@@ -101,11 +121,19 @@ tempcpstat <- tempcpstat |>
 # su test_me,det
 # drop test_me
 # pause
-
 tempcpstat <- tempcpstat |>
-  mutate(me_cpstat_dec = csho * prcc_c, test_me = me_cpstat_dec/me_crsp_dec - 1)
+  mutate(
+    me_cpstat_dec = csho * prcc_c,
+    test_me = me_cpstat_dec/me_crsp_dec - 1
+  )
 
 summary(tempcpstat$test_me)
+# Min: -1
+# 1st Qu.: 0.00
+# Median: 0.00
+# Mean: 3.92
+# 3rd Qu.: 0.00
+# Max: 38474.3
 
 tempcpstat <- tempcpstat |>
   select(-test_me)
@@ -117,10 +145,27 @@ tempcpstat <- tempcpstat |>
 # drop me_*
 # 
 # g mv = me + dltt
-
 tempcpstat <- tempcpstat |>
-  mutate(me = ifelse(is.na(me_crsp_dec), me_cpstat_dec, me_crsp_dec), mv = me + dltt) |>
+  mutate(
+    me = ifelse(is.na(me_crsp_dec), me_cpstat_dec, me_crsp_dec),
+    mv = me + dltt
+  ) |>
   select(!starts_with("me_"))
+
+mean(tempcpstat$mv, na.rm = TRUE)
+
+summary(tempcpstat$dltt)
+# Mean: 889
+# Min.: 0
+# Max.: 3296298
+
+summary(tempcpstat$mv)
+# Min.: 0
+# 1st Qu. : 20
+# Median: 99
+# Mean: 2478 is slightly off
+# 3rd Qu.: 594
+# Max: 3311557
 
 # # Profitability
 # g ps = oiadp / sale
