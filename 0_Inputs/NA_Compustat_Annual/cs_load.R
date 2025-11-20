@@ -171,6 +171,17 @@ summary(tempcpstat$mv)
 # label variable ps "Profit share (OIADB/SALE)"
 # 
 # save tempcpstat, replace
+
+summary(tempcpstat$oiadp)
+# Min.: -80053
+# Mean: 203.52
+# Max.: 130622
+
+summary(tempcpstat$sale)
+# Min.: -15009.3
+# Max.: 496785
+# Mean: 1527.9
+
 tempcpstat <- tempcpstat |>
   group_by(year) |>
   mutate(
