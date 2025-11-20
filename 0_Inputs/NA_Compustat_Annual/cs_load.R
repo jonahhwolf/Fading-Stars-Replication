@@ -156,17 +156,9 @@ tempcpstat <- tempcpstat |>
   ) |>
   select(!starts_with("me_"))
 
-summary(tempcpstat$dltt)
-# Mean: 889
-# Min.: 0
-# Max.: 3296298
-
 summary(tempcpstat$mv)
 # Min.: 0
-# 1st Qu. : 20
-# Median: 99
-# Mean: 2478 is slightly off
-# 3rd Qu.: 594
+# Mean: 2472
 # Max: 3311557
 
 # # Profitability
@@ -188,7 +180,6 @@ tempcpstat <- tempcpstat |>
   ungroup()
 
 summary(tempcpstat$ps)
-
 # slightly off
 
 # # ADD SEGMENTATION DIMENSIONS
