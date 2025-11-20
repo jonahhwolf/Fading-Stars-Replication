@@ -52,7 +52,7 @@ setwd("../")
 # replace me=0 if me==.
 # replace ps = -1 if ps < -1
 
-main_dataset <- read_dta("3_Final_data/main_dataset_firm.dta")
+main_dataset <- read_csv("3_Final_data/main_dataset_firm.csv")
 
 main_dataset <- main_dataset |>
   drop_na(year, gvkey, at, sale, emp, oiadp, aa1_pgo) |>
