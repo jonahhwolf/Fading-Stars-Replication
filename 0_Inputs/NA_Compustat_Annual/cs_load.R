@@ -83,13 +83,17 @@ rm(company_funda, crsp_cpstat_mv)
 # drop if gvkey == 4828 & year == 2001 // DELHAIZE AMERICA INC. Severe issue with csho right before exit.
 # g test_totct = _N
 tempcpstat <- tempcpstat |>
-  mutate(datayear = lubridate::year(datadate)) |>
+  mutate(datayear = lubridate::year(datadate)) 
+
+tempcpstat <- tempcpstat |>
   drop_na(year, gvkey) |>
-  filter(year <= 2017) |>
-  filter(!(gvkey == 4828 & year == 2001))
+  filter(
+    year <= 2017,
+    !(gvkey == "004828" & year == 2001)
+    )
 
 test_totct = nrow(tempcpstat)
-# 446355 <- should be 446354
+# 446354
 
 # # FIRM-LEVEL FIELDS
 # 
@@ -152,8 +156,6 @@ tempcpstat <- tempcpstat |>
   ) |>
   select(!starts_with("me_"))
 
-mean(tempcpstat$mv, na.rm = TRUE)
-
 summary(tempcpstat$dltt)
 # Mean: 889
 # Min.: 0
@@ -177,7 +179,6 @@ summary(tempcpstat$mv)
 # label variable ps "Profit share (OIADB/SALE)"
 # 
 # save tempcpstat, replace
-
 tempcpstat <- tempcpstat |>
   group_by(year) |>
   mutate(
@@ -185,7 +186,11 @@ tempcpstat <- tempcpstat |>
     ps = ifelse(ps < -1, -1, ps),
     ps = Winsorize(ps, val = quantile(ps, probs = c(0.02, 0.98), na.rm = TRUE))) |>
   ungroup()
- 
+
+summary(tempcpstat$ps)
+
+# slightly off
+
 # # ADD SEGMENTATION DIMENSIONS
 # 
 # # SIC
