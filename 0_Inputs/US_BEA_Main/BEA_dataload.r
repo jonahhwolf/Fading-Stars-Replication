@@ -46,6 +46,18 @@ setwd(dirname(this.path()))
 # if "`1'" ~= "go" append using temp
 # save temp, replace
 # end
+vaload <- function(data, value){
+  data |>
+    rename(va_ind = "...1") |>
+    rename_with(~ paste0("y", .x, recycle0 = TRUE), !va_ind) |>
+    mutate(
+      across(starts_with("y"), ~as.numeric(as.character(.))),
+      field = value,
+      .before = 1
+    )
+}
+
+
 #
 # ***************************************
 # 
@@ -81,27 +93,31 @@ if (any(duplicated(mapping$va_ind))) {
 # VALOAD go
 temp_go <- read_xlsx("raw/GDPbyInd_GO_1947-2017.xlsx", sheet = "GO", range = "B6:BU95")
 
-temp_go <- temp_go |>
-  rename(va_ind = "...1") |>
-  rename_with(~ paste0("y", .x, recycle0 = TRUE), !va_ind) |>
-  mutate(
-    across(starts_with("y"), ~as.numeric(as.character(.))),
-    field = "go",
-    .before = 1
-    )
+temp_go <- vaload(temp_go, "go")
+
+# temp_go <- temp_go |>
+#   rename(va_ind = "...1") |>
+#   rename_with(~ paste0("y", .x, recycle0 = TRUE), !va_ind) |>
+#   mutate(
+#     across(starts_with("y"), ~as.numeric(as.character(.))),
+#     field = "go",
+#     .before = 1
+#     )
 
 # import excel US_BEA_Main/raw/GDPbyInd_GO_1947-2017.xlsx, sheet("ChainQtyIndexes") cellrange(B6:BU95) firstrow clear
 # VALOAD goq
 chain_indexes <- read_xlsx("raw/GDPbyInd_GO_1947-2017.xlsx", sheet = "ChainQtyIndexes", range = "B6:BU95")
 
-chain_indexes <- chain_indexes |>
-  rename(va_ind = "...1") |>
-  rename_with(~ paste0("y", .x, recycle0 = TRUE), !va_ind) |>
-  mutate(
-    across(starts_with("y"), ~as.numeric(as.character(.))),
-    field = "goq",
-    .before = 1
-    )
+chain_indexes <- vaload(chain_indexes, "goq")
+
+# chain_indexes_b <- chain_indexes |>
+#   rename(va_ind = "...1") |>
+#   rename_with(~ paste0("y", .x, recycle0 = TRUE), !va_ind) |>
+#   mutate(
+#     across(starts_with("y"), ~as.numeric(as.character(.))),
+#     field = "goq",
+#     .before = 1
+#     )
 
 temp_go <- temp_go |>
   bind_rows(chain_indexes)
