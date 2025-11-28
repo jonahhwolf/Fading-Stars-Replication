@@ -161,17 +161,6 @@ summary(tempcpstat$mv)
 # Mean: 2472
 # Max: 3311557
 
-# # Profitability
-# g ps = oiadp / sale
-# replace ps =  -1 if ps < -1
-# winsor2 ps, replace cuts(2 98) by(year) 
-# 
-# label variable me "Market value of equity (Dec of fiscal year)"
-# label variable mv "Market Value"
-# label variable ps "Profit share (OIADB/SALE)"
-# 
-# save tempcpstat, replace
-
 summary(tempcpstat$oiadp)
 # Min.: -80053
 # Mean: 203.52
@@ -182,16 +171,50 @@ summary(tempcpstat$sale)
 # Max.: 496785
 # Mean: 1527.9
 
+# # Profitability
+# g ps = oiadp / sale
+# replace ps =  -1 if ps < -1
+tempcpstat <- tempcpstat |>
+  mutate(
+    ps = oiadp / sale,
+    ps = case_when(
+      is.na(ps) ~ NA,
+      is.infinite(ps) ~ NA,
+      is.nan(ps) ~ NA,
+      sale == 0 ~ NA,
+      ps < -1 ~ -1,
+      TRUE ~ ps
+    )
+  )
+
+summary(tempcpstat$ps)
+# Min: -1
+# Mean: 0.04
+# Max: 4037.11
+# Median: 0.08
+
+# winsor2 ps, replace cuts(2 98) by(year) 
 tempcpstat <- tempcpstat |>
   group_by(year) |>
   mutate(
-    ps = oiadp / sale,
-    ps = ifelse(ps < -1, -1, ps),
-    ps = Winsorize(ps, val = quantile(ps, probs = c(0.02, 0.98), na.rm = TRUE))) |>
+    ps = case_when(
+      ps < quantile(ps, probs = .02, na.rm = TRUE) ~ quantile(ps, probs = .02, na.rm = TRUE),
+      ps > quantile(ps, probs = .98, na.rm = TRUE) ~ quantile(ps, probs = .98, na.rm = TRUE),
+      TRUE ~ ps
+    )
+  ) |>
   ungroup()
 
-summary(tempcpstat$ps)
-# slightly off
+summary(tempcpstat_alt$ps)
+# Min: -1
+# Max: 0.69
+# Mean: 0.01
+
+# label variable me "Market value of equity (Dec of fiscal year)"
+# label variable mv "Market Value"
+# label variable ps "Profit share (OIADB/SALE)"
+# 
+# save tempcpstat, replace
 
 # # ADD SEGMENTATION DIMENSIONS
 # 
