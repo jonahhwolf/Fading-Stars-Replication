@@ -273,7 +273,8 @@ for(n in 2:6){
 }
 
 tempcpstat <- tempcpstat |>
-  mutate(across(starts_with("naics"), as.numeric))
+  mutate(across(starts_with("naics"), as.numeric)) |>
+  arrange(gvkey, year)
 
 summary(tempcpstat$naics3)
 # Min.: 111.0
@@ -284,15 +285,6 @@ summary(tempcpstat$naics5)
 # Min.: 11115
 # Max.: 99999
 # Mean: 43579
-
-tempcpstat |>
-  distinct(naics2) |>
-  arrange(naics2)
-
-tempcpstat <- tempcpstat |>
-  arrange(gvkey, year)
-
-summary(as.numeric(tempcpstat$naics3))
 
 # # MAP NAICS TO NAICS 2007
 # # Compustat reports an inconsistent NAICS hierarchy.
@@ -310,7 +302,6 @@ summary(as.numeric(tempcpstat$naics3))
 # egen constant_code = max(naics_pre == naics_post),by(naics_pre)
 # keep if constant_code == 0
 # save naics9702,replace
-
 naics9702 <- read_excel("raw/NAICS_Concordances/1997_NAICS_to_2002_NAICS.xls", sheet = "Concordance 23 US NoD")
 
 naics9702 <- naics9702 |>
@@ -332,7 +323,6 @@ naics9702 <- naics9702 |>
 # egen constant_code = sum(naics_pre == naics_post),by(naics_pre)
 # keep if constant_code == 0
 # save naics0207, replace
-
 naics0207 <- read_excel("raw/NAICS_Concordances/2002_to_2007_NAICS.xls", sheet = "02 to 07 NAICS U.S.", range = "A3:D1203")
 
 naics0207 <- naics0207 |>
@@ -354,7 +344,6 @@ naics0207 <- naics0207 |>
 # egen constant_code = sum(naics_pre == naics_post),by(naics_pre)
 # keep if constant_code == 0
 # save naics1207, replace
-
 naics1207 <- read_excel("raw/NAICS_Concordances/2012_to_2007_NAICS.xls", sheet = "2012 to 2007 NAICS U.S.", range = "A3:G1187")
 
 naics1207 <- naics1207 |>
@@ -364,7 +353,7 @@ naics1207 <- naics1207 |>
   # Group by naics_pre and check if any codes are constant
   group_by(naics_pre) |>
   # Keep only rows where the code is not constant
-  mutate(! all(naics_pre == naics_post)) |>
+  filter(! all(naics_pre == naics_post)) |>
   # Optional: ungroup to remove grouping
   ungroup()
 
