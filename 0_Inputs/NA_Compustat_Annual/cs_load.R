@@ -265,17 +265,34 @@ mean(tempcpstat$sic4)
 # save tempcpstat, replace
 
 tempcpstat <- tempcpstat |>
-  mutate(
-    naics2 = substr(naics, 1, 2),
-    naics3 = substr(naics, 1, 3),
-    naics4 = substr(naics, 1 ,4),
-    naics5 = substr(naics, 1, 5),
-    naics6 = substr(naics, 1, 6),
-    across(starts_with("naics"), as.numeric)
-  ) |>
+  mutate(naics = as.character(naics))
+
+for(n in 2:6){
+  tempcpstat <- tempcpstat |>
+    mutate("naics{n}" := ifelse(str_length(naics) >= n, substr(naics, 1, n), NA))
+}
+
+tempcpstat <- tempcpstat |>
+  mutate(across(starts_with("naics"), as.numeric))
+
+summary(tempcpstat$naics3)
+# Min.: 111.0
+# Max.: 999.0
+# Mean: 428.9
+
+summary(tempcpstat$naics5)
+# Min.: 11115
+# Max.: 99999
+# Mean: 43579
+
+tempcpstat |>
+  distinct(naics2) |>
+  arrange(naics2)
+
+tempcpstat <- tempcpstat |>
   arrange(gvkey, year)
 
-summary(as.numeric(tempcpstat$naics))
+summary(as.numeric(tempcpstat$naics3))
 
 # # MAP NAICS TO NAICS 2007
 # # Compustat reports an inconsistent NAICS hierarchy.
