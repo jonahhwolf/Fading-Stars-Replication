@@ -305,15 +305,7 @@ summary(tempcpstat$naics5)
 naics9702 <- read_excel("raw/NAICS_Concordances/1997_NAICS_to_2002_NAICS.xls", sheet = "Concordance 23 US NoD")
 
 naics9702 <- naics9702 |>
-  select(naics_pre = NAICS97, naics_post = NAICS02) |>
-  # Remove rows with empty naics_pre
-  filter(naics_pre != "") |>
-  # Group by naics_pre and check if any codes are constant
-  group_by(naics_pre) |>
-  # Keep only rows where the code is not constant
-  filter(! all(naics_pre == naics_post)) |>
-  # Optional: ungroup to remove grouping
-  ungroup()
+  select(naics_pre = NAICS97, naics_post = NAICS02)
 
 # import excel "NA_Compustat_Annual/raw/NAICS_Concordances/2002_to_2007_NAICS.xls", sheet("02 to 07 NAICS U.S.") cellrange(A3:D1203) firstrow case(l) allstring clear
 # keep naicscode c
@@ -326,16 +318,7 @@ naics9702 <- naics9702 |>
 naics0207 <- read_excel("raw/NAICS_Concordances/2002_to_2007_NAICS.xls", sheet = "02 to 07 NAICS U.S.", range = "A3:D1203")
 
 naics0207 <- naics0207 |>
-  select(naics_pre = 1, naics_post = 3) |>
-  # Remove rows with empty naics_pre
-  filter(naics_pre != "") |>
-  # Group by naics_pre and check if any codes are constant
-  group_by(naics_pre) |>
-  # Keep only rows where the code is not constant
-  filter(! all(naics_pre == naics_post)) |>
-  # Optional: ungroup to remove grouping
-  ungroup()
-
+  select(naics_pre = 1, naics_post = 3)
 # import excel "NA_Compustat_Annual/raw/NAICS_Concordances/2012_to_2007_NAICS.xls", sheet("2012 to 2007 NAICS U.S.") cellrange(A3:G1187) firstrow allstring case(l) clear
 # keep naicscode c
 # rename naicscode  naics_pre 
@@ -347,15 +330,7 @@ naics0207 <- naics0207 |>
 naics1207 <- read_excel("raw/NAICS_Concordances/2012_to_2007_NAICS.xls", sheet = "2012 to 2007 NAICS U.S.", range = "A3:G1187")
 
 naics1207 <- naics1207 |>
-  select(naics_pre = 3, naics_post = 1) |>
-  # Remove rows with empty naics_pre
-  filter(naics_pre != "") |>
-  # Group by naics_pre and check if any codes are constant
-  group_by(naics_pre) |>
-  # Keep only rows where the code is not constant
-  filter(! all(naics_pre == naics_post)) |>
-  # Optional: ungroup to remove grouping
-  ungroup()
+  select(naics_pre = 3, naics_post = 1)
 
 # # Map NAICS-4 when code was retired; else keep prior code
 # foreach X in 9702 0207 1207{
@@ -370,29 +345,36 @@ naics1207 <- naics1207 |>
 # gsort naics4_pre -pctmap naics4_post // for ties, we take lowest NAICS (very rare)
 # bys naics4_pre: keep if _n == 1
 # keep naics4_pre naics4_post
-
 simplify_naics <- function(df) {
   mapping <- df |>
-  mutate(
-    naics4_pre = substr(naics_pre, 1, 4),
-    naics4_post = substr(naics_post, 1, 4),
-    across(starts_with("naics"), as.numeric)) |>
-  group_by(naics4_pre, naics4_post) |>
-  mutate(
-    ct_ni = n(),  # count of six-digit code pairs for given four-digit code pair
-    ct_n = n_distinct(naics4_pre)  # count of pre codes
-  ) |>
-  # unique combinations of 4 digit codes
-  slice(1) |>
-  # Calculate mapping percentage
-  mutate(pctmap = ct_ni / ct_n) |>
-  # Sort to prioritize most common mappings
-  arrange(naics4_pre, desc(pctmap), naics4_post) |>
-  # Keep only the top mapping for each pre code
-  group_by(naics4_pre) |>
-  slice(1) |>
-  # Select only necessary columns
-  select(naics4 = naics4_pre, naics4_post)
+    # Remove rows with empty naics_pre
+    filter(naics_pre != "") |>
+    # Group by naics_pre and check if any codes are constant
+    group_by(naics_pre) |>
+    # Keep only rows where the code is not constant
+    filter(! all(naics_pre == naics_post)) |>
+    # Optional: ungroup to remove grouping
+    ungroup() |>
+    mutate(
+      naics4_pre = substr(naics_pre, 1, 4),
+      naics4_post = substr(naics_post, 1, 4),
+      across(starts_with("naics"), as.numeric)) |>
+    group_by(naics4_pre, naics4_post) |>
+    mutate(
+      ct_ni = n(),  # count of six-digit code pairs for given four-digit code pair
+      ct_n = n_distinct(naics4_pre)  # count of pre codes
+    ) |>
+    # unique combinations of 4 digit codes
+    slice(1) |>
+    # Calculate mapping percentage
+    mutate(pctmap = ct_ni / ct_n) |>
+    # Sort to prioritize most common mappings
+    arrange(naics4_pre, desc(pctmap), naics4_post) |>
+    # Keep only the top mapping for each pre code
+    group_by(naics4_pre) |>
+    slice(1) |>
+    # Select only necessary columns
+    select(naics4 = naics4_pre, naics4_post)
   
   return(mapping)
 }
@@ -416,7 +398,7 @@ rm(naics0207, naics1207, naics9702)
 # erase naics`X'.dta
 # }
 
-tempcpstat <- tempcpstat |>
+tempcpstat_naics <- tempcpstat |>
   left_join(naics_mapping) |>
   mutate(naics4 = ifelse(!is.na(naics4_post), naics4_post, naics4)) |>
   select(-naics4_post)
