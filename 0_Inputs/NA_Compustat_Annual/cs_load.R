@@ -345,39 +345,78 @@ naics1207 <- naics1207 |>
 # gsort naics4_pre -pctmap naics4_post // for ties, we take lowest NAICS (very rare)
 # bys naics4_pre: keep if _n == 1
 # keep naics4_pre naics4_post
-simplify_naics <- function(df) {
-  mapping <- df |>
-    # Remove rows with empty naics_pre
-    filter(naics_pre != "") |>
-    # Group by naics_pre and check if any codes are constant
-    group_by(naics_pre) |>
-    # Keep only rows where the code is not constant
-    filter(! all(naics_pre == naics_post)) |>
-    # Optional: ungroup to remove grouping
-    ungroup() |>
-    mutate(
-      naics4_pre = substr(naics_pre, 1, 4),
-      naics4_post = substr(naics_post, 1, 4),
-      across(starts_with("naics"), as.numeric)) |>
-    group_by(naics4_pre, naics4_post) |>
-    mutate(
-      ct_ni = n(),  # count of six-digit code pairs for given four-digit code pair
-      ct_n = n_distinct(naics4_pre)  # count of pre codes
-    ) |>
-    # unique combinations of 4 digit codes
-    slice(1) |>
-    # Calculate mapping percentage
-    mutate(pctmap = ct_ni / ct_n) |>
-    # Sort to prioritize most common mappings
-    arrange(naics4_pre, desc(pctmap), naics4_post) |>
-    # Keep only the top mapping for each pre code
-    group_by(naics4_pre) |>
-    slice(1) |>
-    # Select only necessary columns
-    select(naics4 = naics4_pre, naics4_post)
+# simplify_naics <- function(df) {
+#   mapping <- df |>
+#     # Remove rows with empty naics_pre
+#     filter(naics_pre != "") |>
+#     # Group by naics_pre and check if any codes are constant
+#     group_by(naics_pre) |>
+#     # Keep only rows where the code is not constant
+#     filter(!(naics_pre == naics_post)) |>
+#     # Optional: ungroup to remove grouping
+#     ungroup() |>
+#     mutate(
+#       naics4_pre = substr(naics_pre, 1, 4),
+#       naics4_post = substr(naics_post, 1, 4),
+#       across(starts_with("naics"), as.numeric)) |>
+#     group_by(naics4_pre, naics4_post) |>
+#     mutate(
+#       ct_ni = n(),  # count of six-digit code pairs for given four-digit code pair
+#       ct_n = n_distinct(naics4_pre)  # count of pre codes
+#     ) |>
+#     # unique combinations of 4 digit codes
+#     slice(1) |>
+#     # Calculate mapping percentage
+#     mutate(pctmap = ct_ni / ct_n) |>
+#     # Sort to prioritize most common mappings
+#     arrange(naics4_pre, desc(pctmap), naics4_post) |>
+#     # Keep only the top mapping for each pre code
+#     group_by(naics4_pre) |>
+#     slice(1) |>
+#     # Select only necessary columns
+#     select(naics4 = naics4_pre, naics4_post)
+#   
+#   return(mapping)
+# }
+
+naics1207_edit <- naics1207 |>
+  filter(naics_pre != "") |>
+  # Group by naics_pre and check if any codes are constant
+  group_by(naics_pre) |>
+  # Keep only rows where the code is not constant
+  filter(!(naics_pre == naics_post)) |>
+  # Optional: ungroup to remove grouping
+  ungroup()
+
+naics1207_edit |>
+  mutate(
+    naics4_pre = substr(naics_pre, 1, 4),
+    naics4_post = substr(naics_post, 1, 4),
+    across(starts_with("naics"), as.numeric)) |>
+  group_by(naics4_pre, naics4_post) |>
+  mutate(ct_ni = n()) |>  # count of six-digit code pairs for given four-digit code pair
+  ungroup() |>
+  group_by(naics4_pre) |>
+  mutate(
+    ct_n = n() # count of pre codes
+  ) |>
+  ungroup() |>
+  # unique combinations of 4 digit codes
+  distinct(naics4_pre, naics4_post, .keep_all = TRUE)
+  # Calculate mapping percentage
+  mutate(pctmap = ct_ni / ct_n) |>
+  # Keep only the top mapping for each pre code
+  group_by(naics4_pre) |>
+  slice_max(pctmap) |>
+  # Select only necessary columns
+  select(naics4 = naics4_pre, naics4_post)
+
+# for each concordance, add variable with years
+# bind those into a dataset
+# for each find the most recent concordance
   
-  return(mapping)
-}
+# merge combined concordances with dataset using naics4
+# add variable naics4_harm as case_when(naics4 == naisc4_post ~ naics4, else naics4_post)
 
 naics_codes <- list(naics9702, naics0207, naics1207)
 
