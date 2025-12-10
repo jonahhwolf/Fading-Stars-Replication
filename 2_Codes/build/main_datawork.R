@@ -87,6 +87,9 @@ cstat_bea <- cstat_bea |>
 # replace mneind_sic = "TCU" if inlist(mneind_sic,"Communications","Electric, gas, and sanitary services","Transportation") & year <= 1988
 # replace mneind_sic = "CU" if inlist(mneind_sic,"Communications","Electric, gas, and sanitary services") & inrange(year,1989,1993)
 # save tempfirm, replace
+cstat_bea <- cstat_bea |>
+  mutate(sicbea = ifelse(sic2 %in% c(37, 48), sic3, sic2))
+
 # 
 # **
 # 
