@@ -58,7 +58,7 @@ crsp_cpstat_mv <- read_dta("loaded/crsp_cpstat_mv.dta")
 # drop month
 tempcpstat <- company_funda |>
   left_join(crsp_cpstat_mv, by = c("gvkey", "year", "month")) |>
-  filter(!is.na(gvkey)) |>
+  drop_na(gvkey) |>
   rename(me_crsp_dec = me_crsp) |>
   select(-month)
 
@@ -100,6 +100,7 @@ test_totct = nrow(tempcpstat)
 # sort gvkey year
 # xtset gvkey year
 tempcpstat <- tempcpstat |>
+  mutate(gvkey = as.numeric(gvkey)) |>
   arrange(gvkey, year)
 
 # # BASIC FINANCIALS
@@ -522,10 +523,20 @@ summary(tempcpstat$beacode)
 
 tempcpstat <- tempcpstat |>
   drop_na(gvkey) |>
-  arrange(gvkey, year) |>
-  distinct(gvkey, year, .keep_all = TRUE)
-  
-fwrite(tempcpstat, "loaded/NA_compustat.csv")
+  arrange(gvkey, year)
+
+tempcpstat |>
+  distinct(gvkey, year) |>
+  nrow() == test_totct
+
+tempcpstat_dta <- read_dta("loaded/NA_compustat.dta")
+
+tempcpstat <- tempcpstat |>
+  relocate(colnames(tempcpstat_dta))
+
+all.equal(tempcpstat, tempcpstat_dta, check.attributes = FALSE)
+
+# fwrite(tempcpstat, "loaded/NA_compustat.csv")
 
 # # Test
 # use tempcpstat, clear
@@ -534,4 +545,3 @@ fwrite(tempcpstat, "loaded/NA_compustat.csv")
 # su test1
 # if abs(`r(mean)')>0.001 BREAK
 # erase tempcpstat.dta
-nrow(tempcpstat) == test_totct
