@@ -1,3 +1,5 @@
+library(data.table)
+library(haven)
 library(tidyverse)
 library(this.path)
 
@@ -37,25 +39,39 @@ setwd("../../")
 # keep if inrange(year,1955,2017)
 # tostring beacode, replace
 
-NA_compustat <- read.csv('0_Inputs/NA_Compustat_Annual/loaded/NA_compustat.csv')
+# tempfirm_r <- read_csv('0_Inputs/NA_Compustat_Annual/loaded/NA_compustat.csv')
 
-NA_compustat <- NA_compustat |>
+# tempfirm_stata <- read_dta('0_Inputs/NA_Compustat_Annual/loaded/NA_compustat.dta')
+
+# tempfirm_missing <- anti_join(tempfirm_stata, tempfirm, by = c("year", "gvkey"))
+
+tempfirm <- read_dta('0_Inputs/NA_Compustat_Annual/loaded/NA_compustat.dta')
+
+tempfirm <- tempfirm |>
   filter(year >= 1955 & year <= 2017) |>
   mutate(beacode = as.character(beacode))
+
+nrow(tempfirm)
+# 442403
 
 # * BEA NAICS
 # merge m:1 beacode using Temp/bea2industry, keep(master matched)
 # tab naicsbea _merge if _m == 1 // USPS (491) and other (999)  --> OK
 # drop _m
+bea2industry <- read_csv("Temp/bea2industry.csv")
 
-bea2industry <- read.csv("Temp/bea2industry.csv")
+tempfirm |>
+  anti_join(bea2industry, by = "beacode") |>
+  count(naicsbea)
 
-cstat_bea <- NA_compustat |>
-  left_join(bea2industry, by = "beacode") |>
-  filter(!is.na(beacode))
+# codes 491 and 999
+  
+tempfirm <- tempfirm |>
+  left_join(bea2industry, by = "beacode")
 
-anti_join(NA_compustat, bea2industry, by = "beacode") |>
-  filter(!is.na(beacode))
+tempfirm |>
+  group_by(naicsbea) |>
+  count()
 
 # * fill-in for other
 # replace ind_short 	 = "Other" if naicsbea == 999
@@ -65,21 +81,28 @@ anti_join(NA_compustat, bea2industry, by = "beacode") |>
 # * drop USPS
 # drop if naicsbea == 491
 # rename ind_short indcode
-
-cstat_bea <- cstat_bea |>
+tempfirm <- tempfirm |>
   mutate(
     ind_short = ifelse(naicsbea == 999, "Other", ind_short),
-#    sector = ifelse(naicsbea == 999, "Other", sector),
-#    empsector_indicator = ifelse(naicsbea == 999, 1, empsector_indicator),
-#    mneind_naics = ifelse(naicsbea == 999, "All", mneind_naics)
+    sector = ifelse(naicsbea == 999, "Other", sector),
+    empsector_indicator = ifelse(naicsbea == 999, 1, empsector_indicator),
+    mneind_naics = ifelse(naicsbea == 999, "All", mneind_naics)
   ) |>
   filter(naicsbea != 491) |>
   rename(indcode = ind_short)
-  
-# 
+
+nrow(tempfirm)
+# 442379
+
+sum(tempfirm$empsector_indicator)
+# 67615
+
 # * SIC to MNE pre-1997
 # g sicbea = sic2
 # replace sicbea = sic3 if inlist(sic2,37,48)
+tempfirm <- tempfirm |>
+  mutate(sicbea = ifelse(sic2 %in% c(37, 48), sic3, sic2))
+
 # merge m:1 sicbea using Temp/sic2mne, keep(master matched)
 # tab sicbea if _m == 1	// other (99)
 # drop _m
@@ -89,7 +112,6 @@ cstat_bea <- cstat_bea |>
 # save tempfirm, replace
 cstat_bea <- cstat_bea |>
   mutate(sicbea = ifelse(sic2 %in% c(37, 48), sic3, sic2))
-
 # 
 # **
 # 
@@ -102,20 +124,43 @@ cstat_bea <- cstat_bea |>
 # tab indcode if _m == 1
 # drop _m
 # save tempfirm, replace
-# 
+bea_mapped <- read_csv("Temp/BEA_mapped.csv")
+
+ind_vars <- bea_mapped |>
+  select(indcode, year, starts_with("aa1"))
+
+nrow(anti_join(tempfirm, ind_vars, by = c("indcode", "year")))
+# 6517
+
+tempfirm <- tempfirm |>
+  left_join(ind_vars, by = c("indcode", "year"))
+
 # *sector
 # use "Temp/BEA_mapped",clear
 # keep if empsector_indicator == 1
 # keep sector year aa1_goq aa1_ftpt aa1_pgo
-# rename aa1_goq aas_goq 
-# rename aa1_pgo aas_pgo 
-# rename aa1_ftpt aas_ftpt 
+# rename aa1_goq aas_goq
+# rename aa1_pgo aas_pgo
+# rename aa1_ftpt aas_ftpt
 # drop if aas_ftpt == .
-# merge 1:m sector year using tempfirm, keep(matched using) 
+# merge 1:m sector year using tempfirm, keep(matched using)
 # tab sector if _m == 2
 # drop _m
 # save tempfirm, replace
-# 
+sector_vars <- bea_mapped |>
+  filter(empsector_indicator == 1) |>
+  select(sector, year, aas_goq = aa1_goq, aas_pgo = aa1_pgo)
+
+nrow(anti_join(tempfirm, sector_vars, by = c("sector", "year")))
+# 6517
+
+tempfirm <- tempfirm |>
+  left_join(sector_vars, by = c("sector", "year")) |>
+  mutate(across(starts_with("aa"), ~ ifelse(.x == 0, NA, .x)))
+
+tempfirm |>
+  summarize(across(starts_with("aa"), ~ mean(.x, na.rm = TRUE)))
+
 # * For "Other" industry, fill in with wtd. average of private industries
 # * We don't want to drop because important stars show up here (GE, Berkshire)
 # use "Temp/BEA_mapped",clear
@@ -127,13 +172,33 @@ cstat_bea <- cstat_bea |>
 # rename aa1_goq aa_goq 
 # rename aa1_ftpt aa_ftpt 
 # keep year aa_*
+year_vars <- bea_mapped |>
+  filter(empsector_indicator == 1) |>
+  select(sector, year, aa1_go, aa1_goq) |>
+  drop_na(aa1_go, aa1_goq) |>
+  group_by(year) |>
+  summarise(across(starts_with("aa1"), sum)) |>
+  mutate(aa_pgo = 100 * aa1_go / aa1_goq ) |>
+  rename(aa_goq = aa1_goq) |>
+  select(year, starts_with("aa_"))
+
 # merge 1:m year using tempfirm, keep(matched using) 
 # drop _m
 # replace aas_goq = aa_goq if indcode == "Other"
 # replace aa1_pgo = aa_pgo if indcode == "Other" 
 # replace aas_pgo = aa_pgo if indcode == "Other" 
 # replace aas_ftpt = aa_ftpt if indcode == "Other"
-# 
+tempfirm <- tempfirm |>
+  left_join(year_vars, by = "year") |>
+  mutate(
+    aas_goq = if_else(indcode == "Other", aa_goq, aas_goq),
+    aa1_pgo = if_else(indcode == "Other", aa_pgo, aa1_pgo),
+    aas_pgo = if_else(indcode == "Other", aa_pgo, aas_pgo)
+    )
+
+nrow(tempfirm)
+# 442379
+
 # **
 # 
 # /* ------------------------ */
@@ -193,6 +258,11 @@ cstat_bea <- cstat_bea |>
 # * FRED
 # merge m:1 year using 0_Inputs/Fred/loaded/fred_data, nogen keep(matched master)
 # save tempfirm, replace
+fred_data <- read_csv("0_Inputs/Fred/loaded/fred_data.csv")
+
+tempfirm <- tempfirm |>
+  left_join(fred_data, by = "year")
+
 # 
 # * FERNALD TFP
 # import excel "0_Inputs/data_quarterly_2018.09.07.xlsx", sheet("annual") firstrow clear case(l)
@@ -217,3 +287,14 @@ cstat_bea <- cstat_bea |>
 # sort gvkey year
 # save  3_Final_Data/main_dataset_firm, replace
 # erase tempfirm.dta
+tempfirm <- tempfirm |>
+  drop_na(gvkey, indcode) |>
+  relocate(gvkey, year, indcode, sale, at) |>
+  arrange(gvkey, year)
+
+nrow(tempfirm)
+
+tempfirm |>
+  fwrite("3_Final_Data/main_dataset_firm.csv")
+
+rm(tempfirm)

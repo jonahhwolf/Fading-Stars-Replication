@@ -2,6 +2,7 @@
 ## - loads datasets
 ## - computes basic firm-level variables
 ## - maps firms to industry segments
+library(haven)
 library(tidyverse)
 library(this.path)
 library(DescTools)
@@ -14,18 +15,30 @@ setwd(dirname(this.path()))
 
 ## FUNDA
 # use NA_Compustat_Annual/raw/funda.dta, clear
-funda <- read.csv("./raw/funda.csv")
+# funda <- read_csv("./raw/funda.csv")
+funda <- read_dta("./raw/funda.dta")
+
+nrow(funda)
+
+# 510675
 
 ## COMPANY
 
 # merge m:1 gvkey using NA_Compustat_Annual/raw/company, nogen keep(matched master) keepusing(loc sic naics)
 # duplicates drop gvkey fyear, force
-company <- read.csv("./raw/company.csv") |>
-  select(c(gvkey, loc, sic, naics))
+
+# company <- read_csv("./raw/company.csv", col_select = c(gvkey, loc, sic, naics))
+company <- read_dta("./raw/company.dta", col_select = c(gvkey, loc, sic, naics))
+
+nrow(company)
+# 54783
 
 company_funda <- funda |>
   left_join(company, relationship = "many-to-one", by = "gvkey") |>
   distinct(gvkey, fyear, .keep_all = TRUE)
+
+nrow(company_funda)
+# 510664
 
 rm(company, funda)
 
@@ -33,13 +46,13 @@ rm(company, funda)
 ## by december of fiscal year (same as prcc_c in compustat)
 # rename fyear year
 # g month = 12
-
 company_funda <- company_funda |>
   rename(year = fyear) |>
   mutate(month = 12)
 
 # merge 1:m gvkey year month using NA_Compustat_Annual/loaded/crsp_cpstat_mv, nogen keep(matched master)
-crsp_cpstat_mv <- read.csv("loaded/crsp_cpstat_mv.csv")
+# crsp_cpstat_mv <- read.csv("loaded/crsp_cpstat_mv.csv")
+crsp_cpstat_mv <- read_dta("loaded/crsp_cpstat_mv.dta")
 
 # rename me_crsp me_crsp_dec
 # drop month
@@ -48,6 +61,12 @@ tempcpstat <- company_funda |>
   filter(!is.na(gvkey)) |>
   rename(me_crsp_dec = me_crsp) |>
   select(-month)
+
+nrow(tempcpstat)
+# 510664
+
+mean(tempcpstat$me_crsp_dec, na.rm = TRUE)
+# 2204.75
 
 rm(company_funda, crsp_cpstat_mv)
 
@@ -64,18 +83,22 @@ rm(company_funda, crsp_cpstat_mv)
 # drop if gvkey == 4828 & year == 2001 // DELHAIZE AMERICA INC. Severe issue with csho right before exit.
 # g test_totct = _N
 tempcpstat <- tempcpstat |>
-  mutate(datayear = lubridate::year(datadate)) |>
-  filter(!is.na(year) & !is.na(gvkey)) |>
-  filter(year <= 2017) |>
-  filter(!(gvkey == 4828 & year == 2001))
+  mutate(datayear = lubridate::year(datadate)) 
+
+tempcpstat <- tempcpstat |>
+  drop_na(year, gvkey) |>
+  filter(
+    year <= 2017,
+    !(gvkey == "004828" & year == 2001)
+    )
 
 test_totct = nrow(tempcpstat)
+# 446354
 
 # # FIRM-LEVEL FIELDS
 # 
 # sort gvkey year
 # xtset gvkey year
-
 tempcpstat <- tempcpstat |>
   arrange(gvkey, year)
 
@@ -102,11 +125,19 @@ tempcpstat <- tempcpstat |>
 # su test_me,det
 # drop test_me
 # pause
-
 tempcpstat <- tempcpstat |>
-  mutate(me_cpstat_dec = csho * prcc_c, test_me = me_cpstat_dec/me_crsp_dec - 1)
+  mutate(
+    me_cpstat_dec = csho * prcc_c,
+    test_me = me_cpstat_dec/me_crsp_dec - 1
+  )
 
 summary(tempcpstat$test_me)
+# Min: -1
+# 1st Qu.: 0.00
+# Median: 0.00
+# Mean: 3.92
+# 3rd Qu.: 0.00
+# Max: 38474.3
 
 tempcpstat <- tempcpstat |>
   select(-test_me)
@@ -118,30 +149,73 @@ tempcpstat <- tempcpstat |>
 # drop me_*
 # 
 # g mv = me + dltt
-
 tempcpstat <- tempcpstat |>
-  mutate(me = ifelse(is.na(me_crsp_dec), me_cpstat_dec, me_crsp_dec), mv = me + dltt) |>
+  mutate(
+    me = ifelse(is.na(me_crsp_dec), me_cpstat_dec, me_crsp_dec),
+    mv = me + dltt
+  ) |>
   select(!starts_with("me_"))
+
+summary(tempcpstat$mv)
+# Min.: 0
+# Mean: 2472
+# Max: 3311557
+
+summary(tempcpstat$oiadp)
+# Min.: -80053
+# Mean: 203.52
+# Max.: 130622
+
+summary(tempcpstat$sale)
+# Min.: -15009.3
+# Max.: 496785
+# Mean: 1527.9
 
 # # Profitability
 # g ps = oiadp / sale
 # replace ps =  -1 if ps < -1
+tempcpstat <- tempcpstat |>
+  mutate(
+    ps = oiadp / sale,
+    ps = case_when(
+      is.na(ps) ~ NA,
+      is.infinite(ps) ~ NA,
+      is.nan(ps) ~ NA,
+      sale == 0 ~ NA,
+      ps < -1 ~ -1,
+      TRUE ~ ps
+    )
+  )
+
+summary(tempcpstat$ps)
+# Min: -1
+# Mean: 0.04
+# Max: 4037.11
+# Median: 0.08
+
 # winsor2 ps, replace cuts(2 98) by(year) 
-# 
+tempcpstat <- tempcpstat |>
+  group_by(year) |>
+  mutate(
+    ps = case_when(
+      ps < quantile(ps, probs = .02, na.rm = TRUE) ~ quantile(ps, probs = .02, na.rm = TRUE),
+      ps > quantile(ps, probs = .98, na.rm = TRUE) ~ quantile(ps, probs = .98, na.rm = TRUE),
+      TRUE ~ ps
+    )
+  ) |>
+  ungroup()
+
+summary(tempcpstat_alt$ps)
+# Min: -1
+# Max: 0.69
+# Mean: 0.01
+
 # label variable me "Market value of equity (Dec of fiscal year)"
 # label variable mv "Market Value"
 # label variable ps "Profit share (OIADB/SALE)"
 # 
 # save tempcpstat, replace
 
-tempcpstat <- tempcpstat |>
-  group_by(year) |>
-  mutate(
-    ps = oiadp / sale,
-    ps = ifelse(ps < -1, -1, ps),
-    ps = Winsorize(ps, val = quantile(ps, probs = c(0.02, 0.98), na.rm = TRUE))) |>
-  ungroup()
- 
 # # ADD SEGMENTATION DIMENSIONS
 # 
 # # SIC
@@ -156,10 +230,24 @@ tempcpstat <- tempcpstat |>
 
 tempcpstat <- tempcpstat |>
   mutate(
+    sic = as.numeric(sic),
     sic2 = sic %/% 100,
     sic3 = sic %/% 10,
     sic4 = sic
     )
+
+summary(tempcpstat$sic2)
+# Min.: 1
+# Mean: 48.22
+# Max: 99.00
+
+summary(tempcpstat$sic3)
+# Min.: 10.0
+# Mean: 486.1
+# Maax: 999.0
+
+mean(tempcpstat$sic4)
+# 4863.134
 
 # # NAICS
 # 
@@ -177,15 +265,26 @@ tempcpstat <- tempcpstat |>
 # save tempcpstat, replace
 
 tempcpstat <- tempcpstat |>
-  mutate(
-    naics2 = substr(naics, 1, 2),
-    naics3 = substr(naics, 1, 3),
-    naics4 = substr(naics, 1 ,4),
-    naics5 = substr(naics, 1, 5),
-    naics6 = substr(naics, 1, 6),
-    across(starts_with("naics"), as.numeric)
-  ) |>
+  mutate(naics = as.character(naics))
+
+for(n in 2:6){
+  tempcpstat <- tempcpstat |>
+    mutate("naics{n}" := ifelse(str_length(naics) >= n, substr(naics, 1, n), NA))
+}
+
+tempcpstat <- tempcpstat |>
+  mutate(across(starts_with("naics"), as.numeric)) |>
   arrange(gvkey, year)
+
+summary(tempcpstat$naics3)
+# Min.: 111.0
+# Max.: 999.0
+# Mean: 428.9
+
+summary(tempcpstat$naics5)
+# Min.: 11115
+# Max.: 99999
+# Mean: 43579
 
 # # MAP NAICS TO NAICS 2007
 # # Compustat reports an inconsistent NAICS hierarchy.
@@ -203,19 +302,10 @@ tempcpstat <- tempcpstat |>
 # egen constant_code = max(naics_pre == naics_post),by(naics_pre)
 # keep if constant_code == 0
 # save naics9702,replace
-
 naics9702 <- read_excel("raw/NAICS_Concordances/1997_NAICS_to_2002_NAICS.xls", sheet = "Concordance 23 US NoD")
 
 naics9702 <- naics9702 |>
-  select(naics_pre = NAICS97, naics_post = NAICS02) |>
-  # Remove rows with empty naics_pre
-  filter(naics_pre != "") |>
-  # Group by naics_pre and check if any codes are constant
-  group_by(naics_pre) |>
-  # Keep only rows where the code is not constant
-  filter(! all(naics_pre == naics_post)) |>
-  # Optional: ungroup to remove grouping
-  ungroup()
+  select(naics_pre = NAICS97, naics_post = NAICS02)
 
 # import excel "NA_Compustat_Annual/raw/NAICS_Concordances/2002_to_2007_NAICS.xls", sheet("02 to 07 NAICS U.S.") cellrange(A3:D1203) firstrow case(l) allstring clear
 # keep naicscode c
@@ -225,20 +315,10 @@ naics9702 <- naics9702 |>
 # egen constant_code = sum(naics_pre == naics_post),by(naics_pre)
 # keep if constant_code == 0
 # save naics0207, replace
-
 naics0207 <- read_excel("raw/NAICS_Concordances/2002_to_2007_NAICS.xls", sheet = "02 to 07 NAICS U.S.", range = "A3:D1203")
 
 naics0207 <- naics0207 |>
-  select(naics_pre = 1, naics_post = 3) |>
-  # Remove rows with empty naics_pre
-  filter(naics_pre != "") |>
-  # Group by naics_pre and check if any codes are constant
-  group_by(naics_pre) |>
-  # Keep only rows where the code is not constant
-  filter(! all(naics_pre == naics_post)) |>
-  # Optional: ungroup to remove grouping
-  ungroup()
-
+  select(naics_pre = 1, naics_post = 3)
 # import excel "NA_Compustat_Annual/raw/NAICS_Concordances/2012_to_2007_NAICS.xls", sheet("2012 to 2007 NAICS U.S.") cellrange(A3:G1187) firstrow allstring case(l) clear
 # keep naicscode c
 # rename naicscode  naics_pre 
@@ -247,19 +327,10 @@ naics0207 <- naics0207 |>
 # egen constant_code = sum(naics_pre == naics_post),by(naics_pre)
 # keep if constant_code == 0
 # save naics1207, replace
-
 naics1207 <- read_excel("raw/NAICS_Concordances/2012_to_2007_NAICS.xls", sheet = "2012 to 2007 NAICS U.S.", range = "A3:G1187")
 
 naics1207 <- naics1207 |>
-  select(naics_pre = 3, naics_post = 1) |>
-  # Remove rows with empty naics_pre
-  filter(naics_pre != "") |>
-  # Group by naics_pre and check if any codes are constant
-  group_by(naics_pre) |>
-  # Keep only rows where the code is not constant
-  mutate(! all(naics_pre == naics_post)) |>
-  # Optional: ungroup to remove grouping
-  ungroup()
+  select(naics_pre = 3, naics_post = 1)
 
 # # Map NAICS-4 when code was retired; else keep prior code
 # foreach X in 9702 0207 1207{
@@ -274,40 +345,50 @@ naics1207 <- naics1207 |>
 # gsort naics4_pre -pctmap naics4_post // for ties, we take lowest NAICS (very rare)
 # bys naics4_pre: keep if _n == 1
 # keep naics4_pre naics4_post
-
-simplify_naics <- function(df) {
-  mapping <- df |>
-  mutate(
-    naics4_pre = substr(naics_pre, 1, 4),
-    naics4_post = substr(naics_post, 1, 4),
-    across(starts_with("naics"), as.numeric)) |>
-  group_by(naics4_pre, naics4_post) |>
-  mutate(
-    ct_ni = n(),  # count of six-digit code pairs for given four-digit code pair
-    ct_n = n_distinct(naics4_pre)  # count of pre codes
-  ) |>
-  # unique combinations of 4 digit codes
-  slice(1) |>
-  # Calculate mapping percentage
-  mutate(pctmap = ct_ni / ct_n) |>
-  # Sort to prioritize most common mappings
-  arrange(naics4_pre, desc(pctmap), naics4_post) |>
-  # Keep only the top mapping for each pre code
-  group_by(naics4_pre) |>
-  slice(1) |>
-  # Select only necessary columns
-  select(naics4 = naics4_pre, naics4_post)
-  
-  return(mapping)
+simplify_naics <- function(df){
+  df |>
+    filter(naics_pre != "") |>
+    # Group by naics_pre and check if any codes are constant
+    group_by(naics_pre) |>
+    # Keep only rows where the code is not constant
+    filter(!(naics_pre == naics_post)) |>
+    # Optional: ungroup to remove grouping
+    ungroup() |>
+    mutate(
+      naics4_pre = substr(naics_pre, 1, 4),
+      naics4_post = substr(naics_post, 1, 4),
+      across(starts_with("naics"), as.numeric)) |>
+    group_by(naics4_pre, naics4_post) |>
+    mutate(ct_ni = n()) |>  # count of six-digit code pairs for given four-digit code pair
+    ungroup() |>
+    group_by(naics4_pre) |>
+    mutate(
+      ct_n = n() # count of pre codes
+    ) |>
+    ungroup() |>
+    # unique combinations of 4 digit codes
+    distinct(naics4_pre, naics4_post, .keep_all = TRUE) |>
+    # Calculate mapping percentage
+    mutate(pctmap = ct_ni / ct_n) |>
+    # Keep only the top mapping for each pre code
+    group_by(naics4_pre) |>
+    slice_max(pctmap) |>
+    # Select only necessary columns
+    select(naics4 = naics4_pre, naics4_post)
 }
 
-naics_codes <- list(naics9702, naics0207, naics1207)
+# create single concordance
+naics_mapping <- list(naics9702, naics0207, naics1207) |>
+  # simplify each concordance
+  lapply(simplify_naics) |>
+  # bind into dataset
+  rbindlist(idcol = TRUE) |>
+  # select the most recent post- code for each pre-code
+  group_by(naics4) |>
+  slice_max(.id) |>
+  select(-.id)
 
-all_mappings <- lapply(naics_codes, simplify_naics)
-
-naics_mapping <- unique(do.call(rbind, all_mappings))
-
-rm(naics0207, naics1207, naics9702)
+# rm(naics0207, naics1207, naics9702, naics_codes, all_mappings)
 
 # # merge and update
 # destring naics*, replace
@@ -319,8 +400,7 @@ rm(naics0207, naics1207, naics9702)
 # sleep 500
 # erase naics`X'.dta
 # }
-
-tempcpstat <- tempcpstat |>
+tempcpstat_naics <- tempcpstat |>
   left_join(naics_mapping) |>
   mutate(naics4 = ifelse(!is.na(naics4_post), naics4_post, naics4)) |>
   select(-naics4_post)

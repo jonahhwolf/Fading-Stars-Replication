@@ -1,3 +1,10 @@
+library(haven)
+library(this.path)
+library(tidyverse)
+
+setwd(dirname(this.path()))
+setwd("../")
+
 # clear all
 # set more off 
 # pause off
@@ -29,7 +36,7 @@
 # /* 		SAMPLE CREATION	  */ 
 # /* ---------------------- */ 
 # 
-# use 3_Final_data/main_dataset_firm, clear 
+# use 3_Final_data/main_dataset_firm, clear
 # 
 # keep if loc == "USA"
 # drop if year==.
@@ -44,7 +51,24 @@
 # drop if aa1_pgo == .	// pre-1963 only
 # replace me=0 if me==.
 # replace ps = -1 if ps < -1
-# 
+main_dataset <- read_csv("3_Final_data/main_dataset_firm.csv")
+
+main_dataset <- main_dataset |>
+  drop_na(year, gvkey, at, sale, emp, oiadp, aa1_pgo) |>
+  filter(
+    loc == "USA",
+    at > 0,
+    sale > 0,
+    emp > 0
+  ) |>
+  mutate(
+    me = ifelse(is.na(me), 0, me),
+    ps = ifelse(ps < -1, -1, ps)
+  )
+
+nrow(main_dataset)
+# 295959
+
 # * Real output deflated with industry prices
 # g sale09 = sale/(aa1_pgo/100)
 # drop if sale09<0.1
@@ -60,6 +84,42 @@
 # sort gvkey year
 # xtset gvkey year
 # encode(indcode),g(indgr)
+
+indcode_levels <- sort(unique(main_dataset$indcode), method = "radix")
+
+main_dataset <- main_dataset |>
+  # Create real sales variable
+  mutate(sale09 = sale / (aa1_pgo / 100)) |>
+  # Filter out very small sales
+  filter(sale09 >= 0.1) |>
+  # Create year when firm first appears in Compustat
+  group_by(gvkey) |>
+  mutate(year0 = min(year, na.rm = TRUE)) |>
+  ungroup() |>
+  # Adjust year0 for pre-1960 entries
+  mutate(year0 = ifelse(year < 1960, 1960, year0)) |>
+  # Standardize company names
+  mutate(
+    conm = case_when(
+      conm == "INTL BUSINESS MACHINES CORP" ~ "IBM",
+      conm == "DU PONT (E I) DE NEMOURS" ~ "DUPONT",
+      conm %in% c("UNITED STATES STEEL CORP", "USX CORP-CONSOLIDATED") ~ "US STEEL",
+      TRUE ~ conm  # keep original name for all others
+    )
+  ) |>
+  # Sort by gvkey and year
+  arrange(gvkey, year) |>
+  # Create industry group factor variable
+  mutate(indgr = as.numeric(factor(indcode, levels = indcode_levels)))
+
+nrow(main_dataset)
+# 293176
+mean(main_dataset$year0)
+# 1980.32
+mean(main_dataset$indgr)
+# 28.63963
+mean(main_dataset$sale09)
+# 1615.495
 # 
 # *
 # 
@@ -128,6 +188,14 @@
 # g cy  = cost/(y*1e3)
 # g sye = sale*(1-aa1_pctfor)/(y*1e3)
 # g cye = cost*(1-aa1_pctfor)/(y*1e3)
+main_dataset <- main_dataset |>
+  mutate(
+    sy = sale / (y * 1e3),
+    # sye = sale*(1-aa1_pctfor)/(y*1e3)
+    )
+
+mean(main_dataset$sy, na.rm = TRUE)
+# .000168
 # 
 # label variable me_share "Share of Mkt Val Equity"
 # label variable sale_share "Sale Share of Compustat Sample"
@@ -206,14 +274,33 @@
 # bys year: g rkme = _n
 # replace rkme = . if inlist(me,0,.)
 # g star = rkme <=20 & me > 0
+main_dataset <- main_dataset |>
+  arrange(year, desc(me)) |>
+  group_by(year) |>
+  mutate(rkme = row_number()) |>
+  ungroup() |>
+  mutate(rkme = ifelse(me == 0 | is.na(me), NA, rkme)) |>
+  mutate(star = (rkme <= 20 & me > 0 & !is.na(rkme)))
+
+main_dataset |>
+  group_by(star) |>
+  count()
+# 1260 stars
 # 
 # * no oil
 # g rkme_exoil = rkme
 # replace rkme_exoil = . if inlist(indcode,"Min_oil_and_gas","Nondur_petro")
-# sort year rkme_exoil 
+#
+# sort year rkme_exoil
 # bys year: replace rkme_exoil = _n if ~inlist(indcode,"Min_oil_and_gas","Nondur_petro")
 # g star_exoil  = rkme_exoil <= 20 & me > 0
-# 
+main_dataset <- main_dataset |>
+  mutate(oil = indcode %in% c("Min_oil_and_gas", "Nondur_petro")) |>
+  group_by(year, oil) |>
+  arrange(rkme) |>
+  mutate(rkme_exoil = ifelse(oil, NA, row_number())) |>
+  ungroup() |>
+  mutate(star_exoil = !(oil) & rkme_exoil <= 20 & me > 0)
 # **
 # 
 # *** INDUSTRY STARS ***
@@ -221,17 +308,41 @@
 # bys year indgr: g irkme = _n
 # replace irkme = . if inlist(me,0,.)
 # 
+main_dataset <- main_dataset |>
+  arrange(year, indgr, desc(me)) |>
+  group_by(year, indgr) |>
+  mutate(irkme = row_number()) |>
+  ungroup() |>
+  mutate(irkme = ifelse(me == 0 | is.na(me), NA, irkme))
+
 # gsort year indgr -sale
 # bys year indgr: g irks = _n
 # replace irks = . if inlist(sale,0,.)
-# 
+main_dataset <- main_dataset |>
+  arrange(year, indgr, desc(sale)) |>
+  group_by(year, indgr) |>
+  mutate(irks = row_number()) |>
+  ungroup() |>
+  mutate(irks = ifelse(sale == 0 | is.na(sale), NA, irks))
 # * fill in ME ranks using sales if not enough me-based ranks
 # egen nirkme = sum(irkme~=.),by(indcode year)
 # replace irkme = irks if nirkme < 4
 # 
 # g istar = irkme<=4
 # g istar_exoil  = istar * ~inlist(indcode,"Min_oil_and_gas","Nondur_petro")
-# 
+main_dataset <- main_dataset |>
+  # Count non-missing industry rankings by industry and year
+  group_by(indcode, year) |>
+  mutate(nirkme = sum(!is.na(irkme))) |>
+  ungroup() |>
+  mutate(
+    # Fill in ME ranks using sales if not enough ME-based ranks
+    irkme = ifelse(nirkme < 4, irks, irkme),
+    # Create industry star indicator (top 4 firms per industry)
+    istar = (irkme <= 4 & !is.na(irkme)),
+    # Create industry star excluding oil/gas industries
+    istar_exoil = istar & !(indcode %in% c("Min_oil_and_gas", "Nondur_petro"))
+    )
 # g all = 1	// for loops
 # 
 # * Truncate LP at -0.3 for stars (few cases in 1960s)
@@ -258,6 +369,36 @@
 # 
 # sort gvkey year
 # save Temp/tempanalysis_stars, replace
+# 
+# 	egen sys_`gp'  = sum(sy*`gp'), by(year)
+# 	egen syes_`gp' = sum(sye*`gp'), by(year)
+# 	egen ens_`gp'  = sum(en*`gp'), by(year)
+# 
+# 	label variable sys_`gp' "`clab'"
+# 	label variable syes_`gp' "`clab'"
+# 	label variable ens_`gp' "`clab'"
+# }
+# 
+# sort gvkey year
+main_dataset <- main_dataset |>
+  group_by(year) |>
+  mutate(
+    # Top 20 (star)
+    sys_star = sum(sy * star, na.rm = TRUE),
+    # syes_star = sum(sye * star, na.rm = TRUE),
+    # Top 4*Ind (istar)
+    sys_istar = sum(sy * istar, na.rm = TRUE),
+    # syes_istar = sum(sye * istar, na.rm = TRUE)
+  ) |>
+  ungroup() |>
+  arrange(gvkey, year)
+
+# save Temp/tempanalysis_stars, replace
+main_dataset |>
+  select(gvkey, star, year, year0, sys_star, sys_istar
+         # syes_star, syes_istar
+         ) |>
+  write_csv("Temp/tempanalysis_stars.csv")
 # */
 # 
 # ***
@@ -270,7 +411,24 @@
 # sort year
 # 
 # keep if star & year >= year0
-# bys year: g oo = _n ==1 
+# bys year: g oo = _n ==1
+
+tempanalysis_stars <- read_csv("3_Final_data/tempanalysis_stars.csv")
+
+# temp_dta <- read_dta("Temp/tempanalysis_stars.dta")
+# 
+# temp_missing <- anti_join(temp_analysis_stars, temp_dta, by = c("year", "gvkey"))
+# 
+# temp_missing |>
+#   filter(star & year > year0)
+# 0 observations
+
+processed_data <- tempanalysis_stars |>
+  filter(star & year >= year0) |>
+  arrange(year) |>
+  group_by(year) |>
+  mutate(oo = row_number() == 1) |>
+  ungroup()
 # 
 # * EMPLOYMENT
 # scatter ens_star ens_istar year if oo ,  c(l l l) ms(th oh i)  leg(r(1)) t1("Employees over Civilian Employment") xti("") 
@@ -280,10 +438,17 @@
 #  
 # label variable syes_star "Top 20, Dom"
 # label variable syes_istar "Top 4*Ind, Dom"
-# scatter  syes_star sys_star syes_istar sys_istar year if oo ,  c(l l l l) ms(th i oh i) lc(dkgreen dkgreen red red) mc(green green red red) legend(row(2)) t1("Sales over GDP")  xti("") 
+# scatter  syes_star sys_star syes_istar sys_istar year if oo ,  c(l l l l) ms(th i oh i) lc(dkgreen dkgreen red red) mc(green green red red) legend(row(2)) t1("Sales over GDP")  xti("")
 # graph export 4_Figures/1b_stars_sales_dom.eps, as(eps) mag(150) replace
 # graph export 4_Figures/1b_stars_sales_dom.png, as(png) replace
 # pause
+processed_data |>
+  filter(oo) |>
+  ggplot(aes(x = year)) +
+  # geom_line(aes(y = syes_star)) +
+  geom_line(aes(y = sys_star)) +
+  # geom_line(aes(y = syes_istar)) +
+  geom_line(aes(y = sys_istar))
 # 
 # 
 # ***
