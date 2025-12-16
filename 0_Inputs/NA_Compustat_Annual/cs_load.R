@@ -205,7 +205,7 @@ tempcpstat <- tempcpstat |>
   ) |>
   ungroup()
 
-summary(tempcpstat_alt$ps)
+summary(tempcpstat$ps)
 # Min: -1
 # Max: 0.69
 # Mean: 0.01
@@ -246,7 +246,7 @@ summary(tempcpstat$sic3)
 # Mean: 486.1
 # Maax: 999.0
 
-mean(tempcpstat$sic4)
+summary(tempcpstat$sic4)
 # 4863.134
 
 # # NAICS
@@ -373,6 +373,7 @@ simplify_naics <- function(df){
     # Keep only the top mapping for each pre code
     group_by(naics4_pre) |>
     slice_max(pctmap) |>
+    slice_min(naics4_post) |>
     # Select only necessary columns
     select(naics4 = naics4_pre, naics4_post)
 }
@@ -388,7 +389,7 @@ naics_mapping <- list(naics9702, naics0207, naics1207) |>
   slice_max(.id) |>
   select(-.id)
 
-# rm(naics0207, naics1207, naics9702, naics_codes, all_mappings)
+rm(naics0207, naics1207, naics9702)
 
 # # merge and update
 # destring naics*, replace
@@ -400,10 +401,14 @@ naics_mapping <- list(naics9702, naics0207, naics1207) |>
 # sleep 500
 # erase naics`X'.dta
 # }
-tempcpstat_naics <- tempcpstat |>
+tempcpstat <- tempcpstat |>
   left_join(naics_mapping) |>
   mutate(naics4 = ifelse(!is.na(naics4_post), naics4_post, naics4)) |>
   select(-naics4_post)
+
+summary(tempcpstat$naics4)
+# slightly off
+
 
 # # FILL-IN MISSING NAICS-4 USING SIC
 # # Includes all firms that exited before 1985
@@ -421,27 +426,27 @@ tempcpstat_naics <- tempcpstat |>
 # keep sic naics4
 # rename naics4 naics4_sicmapped
 # drop if sic == .
-# merge 1:m sic using tempcpstat, nogen
-# replace naics4 = naics4_sicmapped if naics4 == .
-# drop naics4_sicmapped
-
 sic_mapping <- tempcpstat |>
-  filter(! is.na(naics4)) |>
+  drop_na(naics4) |>
   distinct(gvkey, sic, naics4) |>
   # Count observations for each SIC-NAICS combination
   group_by(sic, naics4) |>
   summarise(ctobs = n(), .groups = "drop") |>
-  # Sort by SIC and count (descending)
-  arrange(sic, desc(ctobs), naics4) |>
   # Keep the most common NAICS code for each SIC
   group_by(sic) |>
-  slice(1) |>
+  slice_max(ctobs) |>
+  slice_min(naics4) |>
+  ungroup() |>
   # Keep only necessary columns
   select(sic, naics4) %>%
   # Rename for clarity
   rename(naics4_sicmapped = naics4) |>
   # Remove rows with missing SIC
   filter(!is.na(sic))
+
+# merge 1:m sic using tempcpstat, nogen
+# replace naics4 = naics4_sicmapped if naics4 == .
+# drop naics4_sicmapped
 
 # # Adjust NAICS-2 and 3 when mapped (either through SIC or across NAICS)
 # tostring naics4, g(strnaics4)
@@ -461,6 +466,8 @@ tempcpstat <- tempcpstat |>
     ) |>
   select(-naics4_sicmapped)
 
+mean(tempcpstat$naics4)
+
 # # NAICS TO BEA
 # 
 # # Map NAICS to BEA segments 
@@ -470,8 +477,6 @@ tempcpstat <- tempcpstat |>
 # 
 # merge m:1 naicsbea using ../Temp/NAICS2BEA
 
-naics2bea <- read_xlsx("../../1_Mapping_Files/NAICS2BEA.xlsx")
-
 tempcpstat <- tempcpstat |>
   mutate(
     naicsbea = case_when(
@@ -479,8 +484,10 @@ tempcpstat <- tempcpstat |>
       naics2 %in% c(22,23,42,44,45,55,61,81) ~ naics2,
       .default = naics3
     )
-  ) |>
-  left_join(naics2bea, by = join_by(naicsbea == naics))
+  )
+
+naics2bea <- read_xlsx("../../1_Mapping_Files/NAICS2BEA.xlsx") |>
+  rename(naicsbea = naics)
 
 # # test: NAICS 55 (Mgmt, not in cpstat), 513,514,516 (retired tech codes),  
 # # 491 (USPS), 521 (Fed), and 999 (Other) don't map. OK.
@@ -488,6 +495,18 @@ tempcpstat <- tempcpstat |>
 # pause
 # drop if _merge == 2
 # drop _merge
+anti_join(tempcpstat, naics2bea) |>
+  distinct(naicsbea)
+
+anti_join(naics2bea, tempcpstat) |>
+  distinct(naicsbea)
+
+# not getting anything for 213 (mining) or 5416 (tech consulting)
+
+tempcpstat <- tempcpstat |>
+  left_join(naics2bea)
+
+summary(tempcpstat$beacode)
 # 
 # # FINALIZE
 # 
@@ -502,7 +521,7 @@ tempcpstat <- tempcpstat |>
 # save NA_Compustat_Annual/loaded/NA_compustat, replace
 
 tempcpstat <- tempcpstat |>
-  filter(!is.na(gvkey)) |>
+  drop_na(gvkey) |>
   arrange(gvkey, year) |>
   distinct(gvkey, year, .keep_all = TRUE)
   
