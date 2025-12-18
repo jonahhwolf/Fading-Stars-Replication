@@ -58,7 +58,6 @@ crsp_cpstat_mv <- read_dta("loaded/crsp_cpstat_mv.dta")
 # drop month
 tempcpstat <- company_funda |>
   left_join(crsp_cpstat_mv, by = c("gvkey", "year", "month")) |>
-  drop_na(gvkey) |>
   rename(me_crsp_dec = me_crsp) |>
   select(-month)
 
@@ -353,7 +352,7 @@ simplify_naics <- function(df){
     group_by(naics_pre) |>
     # Keep only rows where the code is not constant
     filter(!(naics_pre == naics_post)) |>
-    # Optional: ungroup to remove grouping
+    # ungroup to remove grouping
     ungroup() |>
     mutate(
       naics4_pre = substr(naics_pre, 1, 4),
@@ -385,10 +384,8 @@ naics_mapping <- list(naics9702, naics0207, naics1207) |>
   lapply(simplify_naics) |>
   # bind into dataset
   rbindlist(idcol = TRUE) |>
-  # select the most recent post- code for each pre-code
-  group_by(naics4) |>
-  slice_max(.id) |>
-  select(-.id)
+  mutate(.id = case_match(1 ~ "naics4_02", 2 ~ "naics4_07", 3 ~ "naics4_12" )) |>
+  pivot_wider(names_from = .id, values_from = naics4_post)
 
 rm(naics0207, naics1207, naics9702)
 
@@ -402,10 +399,35 @@ rm(naics0207, naics1207, naics9702)
 # sleep 500
 # erase naics`X'.dta
 # }
-tempcpstat <- tempcpstat |>
-  left_join(naics_mapping) |>
-  mutate(naics4 = ifelse(!is.na(naics4_post), naics4_post, naics4)) |>
-  select(-naics4_post)
+naics9702_new <- simplify_naics(naics9702) %>% rename(naics4_02 = naics4_post)
+naics0207_new <- simplify_naics(naics0207) %>% rename(naics4_07 = naics4_post)
+naics1207_new <- simplify_naics(naics1207) %>% rename(naics4_12 = naics4_post)
+
+tempcpstat_naicspost <- tempcpstat |>
+  left_join(naics9702_new, by = "naics4", relationship = "many-to-one") |>
+  mutate(naics4_new = ifelse(!is.na(naics4_02), naics4_02, naics4)) |>
+  left_join(naics0207_new, by = "naics4", relationship = "many-to-one") |>
+  mutate(naics4_new = ifelse(!is.na(naics4_07), naics4_07, naics4_new)) |>
+  left_join(naics1207_new, by = "naics4", relationship = "many-to-one") |>
+  mutate(naics4_new = ifelse(!is.na(naics4_12), naics4_12, naics4_new))
+
+# tempcpstat_naicspost <- tempcpstat |>
+#   left_join(naics_mapping, by = "naics4", relationship = "many-to-one") |>
+#   mutate(naics4 = ifelse(!is.na(naics4_post), naics4_post, naics4)) |>
+#   select(-naics4_post)
+
+tempcpstat_dta <- read_dta("loaded/NA_compustat.dta")
+
+x <- count(tempcpstat_naicspost, naics4_new) %>% rename(naics4 = naics4_new)
+
+y <- count(tempcpstat_dta, naics4)
+
+z <- left_join(x, y, by = "naics4")
+
+z |>
+  filter(n.x != n.y)
+
+count(tempcpstat, naics4)
 
 summary(tempcpstat$naics4)
 # slightly off
