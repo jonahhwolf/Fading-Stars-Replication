@@ -402,8 +402,8 @@ tempcpstat <- tempcpstat |>
   select(-naics4_post)
 
 summary(tempcpstat$naics4)
-# Mean: 4304
 # Median: 4431
+# Mean: 4304
 
 
 # # FILL-IN MISSING NAICS-4 USING SIC
@@ -456,18 +456,22 @@ mean(sic_mapping$sic)
 # }
 # drop n2 n3 strnaics4
 
-tempcpstat <- tempcpstat |>
+tempcpstat<- tempcpstat |>
   left_join(sic_mapping) |>
   mutate(
     naics4 = if_else(is.na(naics4), naics4_sicmapped, naics4),
-    naics2 = as.numeric(substr(naics4, 1, 2)),
-    naics3 = as.numeric(substr(naics4, 1, 3))
+    naics2 = ifelse(is.na(naics4), naics2, as.numeric(substr(naics4, 1, 2))),
+    naics3 = ifelse(is.na(naics4), naics3, as.numeric(substr(naics4, 1, 3)))
     ) |>
   select(-naics4_sicmapped)
 
 summary(tempcpstat$naics4)
 # Median: 4251
 # Mean: 4279
+
+summary(tempcpstat$naics3)
+# Median: 425
+# Mean: 427.6
 
 # # NAICS TO BEA
 # 
@@ -478,7 +482,7 @@ summary(tempcpstat$naics4)
 # 
 # merge m:1 naicsbea using ../Temp/NAICS2BEA
 
-tempcpstat <- tempcpstat |>
+tempcpstat_bea <- tempcpstat |>
   mutate(
     naicsbea = case_when(
       naics4 %in% 5411:5419 ~ naics4,
@@ -486,6 +490,8 @@ tempcpstat <- tempcpstat |>
       .default = naics3
     )
   )
+
+summary(tempcpstat_bea$naicsbea)
 
 naics2bea <- read_xlsx("../../1_Mapping_Files/NAICS2BEA.xlsx") |>
   rename(naicsbea = naics)
