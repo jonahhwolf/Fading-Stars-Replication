@@ -351,8 +351,9 @@ simplify_naics <- function(df){
     # Group by naics_pre and check if any codes are constant
     group_by(naics_pre) |>
     # Keep only rows where the code is not constant
-    filter(!(naics_pre == naics_post)) |>
-    # ungroup to remove grouping
+    mutate(constant_code = sum(naics_pre == naics_post)) |>
+    filter(constant_code == 0) |>
+    select(-constant_code) |>
     ungroup() |>
     mutate(
       naics4_pre = substr(naics_pre, 1, 4),
@@ -362,9 +363,7 @@ simplify_naics <- function(df){
     mutate(ct_ni = n()) |>  # count of six-digit code pairs for given four-digit code pair
     ungroup() |>
     group_by(naics4_pre) |>
-    mutate(
-      ct_n = n() # count of pre codes
-    ) |>
+    mutate(ct_n = n()) |>
     ungroup() |>
     # unique combinations of 4 digit codes
     distinct(naics4_pre, naics4_post, .keep_all = TRUE) |>
@@ -383,9 +382,7 @@ naics_mapping <- list(naics9702, naics0207, naics1207) |>
   # simplify each concordance
   lapply(simplify_naics) |>
   # bind into dataset
-  rbindlist(idcol = TRUE) |>
-  mutate(.id = case_match(1 ~ "naics4_02", 2 ~ "naics4_07", 3 ~ "naics4_12" )) |>
-  pivot_wider(names_from = .id, values_from = naics4_post)
+  rbindlist()
 
 rm(naics0207, naics1207, naics9702)
 
@@ -399,38 +396,14 @@ rm(naics0207, naics1207, naics9702)
 # sleep 500
 # erase naics`X'.dta
 # }
-naics9702_new <- simplify_naics(naics9702) %>% rename(naics4_02 = naics4_post)
-naics0207_new <- simplify_naics(naics0207) %>% rename(naics4_07 = naics4_post)
-naics1207_new <- simplify_naics(naics1207) %>% rename(naics4_12 = naics4_post)
-
-tempcpstat_naicspost <- tempcpstat |>
-  left_join(naics9702_new, by = "naics4", relationship = "many-to-one") |>
-  mutate(naics4_new = ifelse(!is.na(naics4_02), naics4_02, naics4)) |>
-  left_join(naics0207_new, by = "naics4", relationship = "many-to-one") |>
-  mutate(naics4_new = ifelse(!is.na(naics4_07), naics4_07, naics4_new)) |>
-  left_join(naics1207_new, by = "naics4", relationship = "many-to-one") |>
-  mutate(naics4_new = ifelse(!is.na(naics4_12), naics4_12, naics4_new))
-
-# tempcpstat_naicspost <- tempcpstat |>
-#   left_join(naics_mapping, by = "naics4", relationship = "many-to-one") |>
-#   mutate(naics4 = ifelse(!is.na(naics4_post), naics4_post, naics4)) |>
-#   select(-naics4_post)
-
-tempcpstat_dta <- read_dta("loaded/NA_compustat.dta")
-
-x <- count(tempcpstat_naicspost, naics4_new) %>% rename(naics4 = naics4_new)
-
-y <- count(tempcpstat_dta, naics4)
-
-z <- left_join(x, y, by = "naics4")
-
-z |>
-  filter(n.x != n.y)
-
-count(tempcpstat, naics4)
+tempcpstat <- tempcpstat |>
+  left_join(naics_mapping, by = "naics4") |>
+  mutate(naics4 = ifelse(!is.na(naics4_post), naics4_post, naics4)) |>
+  select(-naics4_post)
 
 summary(tempcpstat$naics4)
-# slightly off
+# Mean: 4304
+# Median: 4431
 
 
 # # FILL-IN MISSING NAICS-4 USING SIC
@@ -467,6 +440,9 @@ sic_mapping <- tempcpstat |>
   # Remove rows with missing SIC
   filter(!is.na(sic))
 
+mean(sic_mapping$sic)
+# 4489.183
+
 # merge 1:m sic using tempcpstat, nogen
 # replace naics4 = naics4_sicmapped if naics4 == .
 # drop naics4_sicmapped
@@ -483,13 +459,15 @@ sic_mapping <- tempcpstat |>
 tempcpstat <- tempcpstat |>
   left_join(sic_mapping) |>
   mutate(
-    naics4 = coalesce(naics4, naics4_sicmapped),
+    naics4 = if_else(is.na(naics4), naics4_sicmapped, naics4),
     naics2 = as.numeric(substr(naics4, 1, 2)),
     naics3 = as.numeric(substr(naics4, 1, 3))
     ) |>
   select(-naics4_sicmapped)
 
-mean(tempcpstat$naics4)
+summary(tempcpstat$naics4)
+# Median: 4251
+# Mean: 4279
 
 # # NAICS TO BEA
 # 
