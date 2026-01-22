@@ -352,11 +352,11 @@ mapping <- mapping |>
 # compress
 temp <- temp_go |>
   inner_join(mapping, by = "beacode") |>
-  select(beacode, year, everything()) |>
+  select(beacode, year, nonov_ind, aa1_go, aa1_goq) |>
   arrange(beacode, year)
 
 # saveold US_BEA_Main/loaded/BEA_industry_raw, replace
-write_csv(temp, "loaded/BEA_industry_raw.csv")
+fwrite(temp, "loaded/BEA_industry_raw.csv")
 
 # erase temp.dta
 # erase temp_go.dta
