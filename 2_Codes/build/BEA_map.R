@@ -22,7 +22,8 @@ setwd("../../")
 # drop _m
 # Load BEA to industry mapping
 
-bea_mapping <- read_csv("Temp/bea2industry.csv")
+bea_mapping <- read_csv("Temp/bea2industry.csv") |>
+  select(-mneind_naics)
 
 # Merge with BEA industry raw data
 bea_data <- read_csv("0_Inputs/US_BEA_Main/loaded/BEA_industry_raw.csv")
@@ -69,7 +70,7 @@ bea_mapped <- bea_mapped |>
   rename(indcode = ind_short)
 
 bea_mapped |>
-  write_csv("Temp/BEA_mapped.csv")
+  fwrite("Temp/BEA_mapped.csv")
 
 # 
 # /* --------*/
