@@ -61,11 +61,12 @@ fwrite(NAICS2BEA, "Temp/naics2bea.csv")
 # bys beacode ind_short: keep if _n ==1 
 # save Temp/bea2industry, replace
 BEA2INDUSTRY <- read_xlsx("1_Mapping_Files/BEA_mapping_stars.xlsx") |>
-  select(c(beacode, ind_short, sector, empsector_indicator, mneind_naics)) |>
+  select(c(beacode, mneind_naics, ind_short, sector, empsector_indicator)) |>
   drop_na(beacode) |>
-  distinct(beacode, ind_short, .keep_all = TRUE)
+  distinct(beacode, ind_short, .keep_all = TRUE) |>
+  arrange(beacode)
 
-write.csv(BEA2INDUSTRY, "Temp/bea2industry.csv", row.names = FALSE)
+fwrite(BEA2INDUSTRY, "Temp/bea2industry.csv")
 
 # * sic2mne (pre-1998)
 # import excel 1_Mapping_Files/BEA_mapping_stars.xlsx, sheet("sic2mne") firstrow clear
