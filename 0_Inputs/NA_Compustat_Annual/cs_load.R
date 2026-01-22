@@ -15,12 +15,7 @@ setwd(dirname(this.path()))
 
 ## FUNDA
 # use NA_Compustat_Annual/raw/funda.dta, clear
-# funda <- read_csv("./raw/funda.csv")
-funda <- read_dta("./raw/funda.dta")
-
-nrow(funda)
-
-# 510675
+funda <- read_csv("./raw/funda.csv")
 
 ## COMPANY
 
@@ -482,7 +477,7 @@ summary(tempcpstat$naics3)
 # 
 # merge m:1 naicsbea using ../Temp/NAICS2BEA
 
-tempcpstat_bea <- tempcpstat |>
+tempcpstat <- tempcpstat |>
   mutate(
     naicsbea = case_when(
       naics4 %in% 5411:5419 ~ naics4,
@@ -491,7 +486,9 @@ tempcpstat_bea <- tempcpstat |>
     )
   )
 
-summary(tempcpstat_bea$naicsbea)
+summary(tempcpstat$naicsbea)
+# Median: 334
+# Mean: 541.8
 
 naics2bea <- read_xlsx("../../1_Mapping_Files/NAICS2BEA.xlsx") |>
   rename(naicsbea = naics)
@@ -504,16 +501,24 @@ naics2bea <- read_xlsx("../../1_Mapping_Files/NAICS2BEA.xlsx") |>
 # drop _merge
 anti_join(tempcpstat, naics2bea) |>
   distinct(naicsbea)
+# 999
+# 491
 
 anti_join(naics2bea, tempcpstat) |>
   distinct(naicsbea)
-
-# not getting anything for 213 (mining) or 5416 (tech consulting)
+# 513
+# 514
+# 521
+# 55
+# 516 is still in both datasets, but I think that's OK (the replication code doesn't turn up anything for 516)
 
 tempcpstat <- tempcpstat |>
   left_join(naics2bea)
 
 summary(tempcpstat$beacode)
+# Median: 4200
+# Mean: 4181
+
 # 
 # # FINALIZE
 # 
@@ -526,23 +531,23 @@ summary(tempcpstat$beacode)
 # save tempcpstat, replace
 # drop test*
 # save NA_Compustat_Annual/loaded/NA_compustat, replace
-
 tempcpstat <- tempcpstat |>
-  drop_na(gvkey) |>
-  arrange(gvkey, year)
-
-tempcpstat |>
-  distinct(gvkey, year) |>
-  nrow() == test_totct
+  relocate(gvkey, year) |>
+  arrange(gvkey, year) |>
+  distinct(gvkey, year, .keep_all = TRUE) |>
+  drop_na(gvkey)
 
 tempcpstat_dta <- read_dta("loaded/NA_compustat.dta")
 
 tempcpstat <- tempcpstat |>
   relocate(colnames(tempcpstat_dta))
 
+anti_join(tempcpstat_dta, tempcpstat, by = c("gvkey", "year"))
+# 5 missing observations
+
 all.equal(tempcpstat, tempcpstat_dta, check.attributes = FALSE)
 
-# fwrite(tempcpstat, "loaded/NA_compustat.csv")
+fwrite(tempcpstat, "loaded/NA_compustat.csv")
 
 # # Test
 # use tempcpstat, clear
@@ -550,4 +555,5 @@ all.equal(tempcpstat, tempcpstat_dta, check.attributes = FALSE)
 # g test1 =  ct - test_totct
 # su test1
 # if abs(`r(mean)')>0.001 BREAK
+nrow(tempcpstat) == test_totct
 # erase tempcpstat.dta
