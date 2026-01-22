@@ -52,7 +52,7 @@ NAICS2BEA <- read_xlsx("1_Mapping_Files/NAICS2BEA.xlsx") |>
   mutate(naicsbea = as.numeric(naicsbea)) |>
   filter(naicsbea != "")
   
-write.csv(NAICS2BEA, "Temp/naics2bea.csv")
+fwrite(NAICS2BEA, "Temp/naics2bea.csv")
 
 # * aggregation of bea industries + mapping to MNE
 # import excel 1_Mapping_Files/BEA_mapping_stars.xlsx, firstrow clear
