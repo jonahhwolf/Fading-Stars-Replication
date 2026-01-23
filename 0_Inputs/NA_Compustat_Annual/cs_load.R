@@ -15,7 +15,7 @@ setwd(dirname(this.path()))
 
 ## FUNDA
 # use NA_Compustat_Annual/raw/funda.dta, clear
-funda <- read_csv("./raw/funda.csv")
+funda <- read_dta("./raw/funda.dta")
 
 ## COMPANY
 
@@ -536,16 +536,6 @@ tempcpstat <- tempcpstat |>
   arrange(gvkey, year) |>
   distinct(gvkey, year, .keep_all = TRUE) |>
   drop_na(gvkey)
-
-tempcpstat_dta <- read_dta("loaded/NA_compustat.dta")
-
-tempcpstat <- tempcpstat |>
-  relocate(colnames(tempcpstat_dta))
-
-anti_join(tempcpstat_dta, tempcpstat, by = c("gvkey", "year"))
-# 5 missing observations
-
-all.equal(tempcpstat, tempcpstat_dta, check.attributes = FALSE)
 
 fwrite(tempcpstat, "loaded/NA_compustat.csv")
 
