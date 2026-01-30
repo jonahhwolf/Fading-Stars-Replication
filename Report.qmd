@@ -1,0 +1,22 @@
+---
+title: "Fading Stars Replication"
+author: "Jonah Wolf"
+format: pdf
+editor: visual
+---
+
+## Introduction
+
+This paper is a replication of Gutiérrez and Philippon (2019), itself a response to Autor et al. (2020). Gutiérrez and Philippon provide evidence contra Autor et al. that growth of the U.S. aggregate profit share should not be explained by firm-level innovations, but rather by market concentration. To do this, they disaggregate firm-year observations in the Compustat database by 4-digits NAICS code and identify the share of sales accruing to the top four firms by market value in each industry.
+
+## Data
+
+For their exercise, Gutiérrez and Philippon produce a consolidated dataset, merging Compustat data with data from other public sources.
+
+First they download a directory of public companies with their identifiers ("gvkey") and SIC and NAICS industry codings from the "comp_na_daily_all.company" table.
+
+They also download data on market fundamentals from the "Merged Fundamental Annual File" ("funda"). They filter this data to include data from consolidated balance sheets, from industrial (non-financial) companies, from standardized balance sheets, from domestic firms, and with data in US dollars.
+
+The authors download data on prices and shares outstanding from CRSP's "crspmsf" table and linking identifiers from the CRSP/Compustat Merged ("CCM") linktable (now deprecated?) <https://www.kaichen.work/?p=138>
+
+## Consolidation
