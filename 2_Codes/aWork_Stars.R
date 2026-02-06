@@ -413,7 +413,7 @@ main_dataset |>
 # keep if star & year >= year0
 # bys year: g oo = _n ==1
 
-tempanalysis_stars <- read_csv("3_Final_data/tempanalysis_stars.csv")
+tempanalysis_stars <- read_csv("Temp/tempanalysis_stars.csv")
 
 # temp_dta <- read_dta("Temp/tempanalysis_stars.dta")
 # 
