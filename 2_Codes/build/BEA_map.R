@@ -52,7 +52,7 @@ bea_mapped <- bea_mapping |>
 bea_mapped <- bea_mapped |>
   group_by(ind_short, year) |>
   summarise(
-    across(starts_with("aa"), ~ sum(.x, na.rm = TRUE)),
+    across(starts_with("aa"), sum),
     across(everything(), first),
     .groups = "drop"
   ) |>
