@@ -39,12 +39,6 @@ setwd("../../")
 # keep if inrange(year,1955,2017)
 # tostring beacode, replace
 
-# tempfirm_r <- read_csv('0_Inputs/NA_Compustat_Annual/loaded/NA_compustat.csv')
-
-# tempfirm_stata <- read_dta('0_Inputs/NA_Compustat_Annual/loaded/NA_compustat.dta')
-
-# tempfirm_missing <- anti_join(tempfirm_stata, tempfirm, by = c("year", "gvkey"))
-
 tempfirm <- read_dta('0_Inputs/NA_Compustat_Annual/loaded/NA_compustat.dta')
 
 tempfirm <- tempfirm |>
