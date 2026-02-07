@@ -7,7 +7,7 @@ editor: visual
 
 ## Introduction
 
-This paper is a replication of Gutiérrez and Philippon (2019), itself a response to Autor et al. (2020). Gutiérrez and Philippon dispute the argument from Autor et al. that growth of the U.S. profit share might be explained by the increasing prevalence of highly productive firms. As part of their analysis, they use firm-year observations in the Compustat database identify the share of sales accruing to the top twenty firms by market value and the top four firms by market value in each 4-digit NAICS industry, arguing that "contrary to common wisdom, the stars have not become larger in terms of sales" (313).
+This paper is a replication of Gutiérrez and Philippon (2019), itself a response to Autor et al. (2020). Gutiérrez and Philippon dispute the argument from Autor et al. that growth of the U.S. profit share might be explained by the increasing prevalence of highly productive firms. As part of their analysis, they use firm-year observations in the Compustat database identify the share of sales accruing to the top twenty firms by market value and the top four firms by market value in each BEA industry, arguing that "contrary to common wisdom, the stars have not become larger in terms of sales" (313).
 
 ## Replication Procedure
 
@@ -21,9 +21,9 @@ Gutiérrez and Philippon use a script titled "cs_download" to download a table o
 
 ## Consolidation
 
-The authors use a script called "cs_load" to consolidate the Compustat and CRSP data into a dataset called "NA_compustat." They restrict the combined dataset to observations from 2017 or earlier, and a calculation of profit shares as the ratio of operating income after depreciation to sales, winsorized at 96%. They generate two- and three-digit SIC codes, and two-through-six-digit NAICS codes. They then update the four-digit NAICS codes using concordances from the Census bureau. Observations with missing NAICS codes are mapped to the most common NAICS code for the given SIC code. They also merge in BEA codes.
+The authors use a script called "cs_load" to consolidate the Compustat and CRSP data into a dataset called "NA_compustat." They restrict the combined dataset to observations from 2017 or earlier, and a calculation of profit shares as the ratio of operating income after depreciation to sales, winsorized at 96%. They generate two- and three-digit SIC codes, and two-through-six-digit NAICS codes. They then update the four-digit NAICS codes using concordances from the Census bureau. Observations with missing NAICS codes are mapped to the most common NAICS code for the given SIC code. They then merge in BEA codes from a "NAICS2BEA" mapping file.
 
-I used the R "all.equal" function to compare the "NA_compustat" dataset generated from my R code to the one generated from the authors' Stata code. The mean relative difference for each variable in the two datasets was below 0.05, with the exception of "prcc_f" ("Price Close - Annual - Fiscal") and "fyr" ("Fiscal Year-end Month"), neither of which seems to be used in the analysis.
+I used the R "all.equal" function to compare the "NA_compustat" dataset generated from my R code to the one generated from the authors' Stata code. The mean relative difference for each variable in the two datasets was below 0.05, with the exceptions of "prcc_f" ("Price Close - Annual - Fiscal") and "fyr" ("Fiscal Year-end Month"), neither of which seems to be used in the analysis. I also added checkpoints after the creation of each variable in the script to check the mean and median against those produced by the data script, and couldn't identify any discrepancies.
 
 ## Other Data Sources
 
@@ -31,10 +31,12 @@ I also followed the authors in generating tables of national and industry-level 
 
 ## Data Work
 
-The authors use a script called "main_datawork" to further prepare the data. They restrict the sample to observations from 1955 to 2017. They merge in more BEA sector codes and merge in industry-level BEA data on output and employment. (For this replication I skipped the employment data.)
+The authors use a script called "main_datawork" to prepare a dataset called "main_dataset_firm." They restrict the sample to observations from 1955 to 2017. They merge in BEA industry codes and industry-level BEA data on output and employment. (For this replication I skipped the employment data.)
 
 As with the raw data, the only variables that seem to have significant differences are "prcc_f" and "fyr."
 
 ## Analysis
 
-The final analysis is done in a script called "aWork_stars."
+The final analysis is done in a script called "aWork_stars." The authors filter the dataset to firm-years located in the US with positive sales, employment, and total assets ("at"). They calculate the share of each firm's sales in total output ("sy"), and identify "stars" (the top twenty firms by market value in each year) and "industry stars" (top four firms by market value in each BEA industry in each year).
+
+The final dataset ("tempanalysis_stars") produced by my script contains more observations than that produced by the replication script. This can probably be explained by the fact that the authors filter by two variables that I didn't calculate (labor productivity and three-year growth rate).

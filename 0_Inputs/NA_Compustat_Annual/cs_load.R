@@ -22,7 +22,6 @@ funda <- read_dta("./raw/funda.dta")
 # merge m:1 gvkey using NA_Compustat_Annual/raw/company, nogen keep(matched master) keepusing(loc sic naics)
 # duplicates drop gvkey fyear, force
 
-# company <- read_csv("./raw/company.csv", col_select = c(gvkey, loc, sic, naics))
 company <- read_dta("./raw/company.dta", col_select = c(gvkey, loc, sic, naics))
 
 nrow(company)
@@ -46,7 +45,6 @@ company_funda <- company_funda |>
   mutate(month = 12)
 
 # merge 1:m gvkey year month using NA_Compustat_Annual/loaded/crsp_cpstat_mv, nogen keep(matched master)
-# crsp_cpstat_mv <- read.csv("loaded/crsp_cpstat_mv.csv")
 crsp_cpstat_mv <- read_dta("loaded/crsp_cpstat_mv.dta")
 
 # rename me_crsp me_crsp_dec
